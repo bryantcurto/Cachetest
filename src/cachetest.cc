@@ -25,6 +25,7 @@
 //Defs
 
 #define INITIAL_LOOP_ITERATIONS 10000000
+#define CRNL "\r\n"
 //#define DEBUG
 //#define DEBUG_CREATE
 //#define DEBUG_RUN
@@ -37,7 +38,7 @@ void * WRITEBACK_VAR;
 #define START_CODE 4711u
 #define EXIT_CODE 4710u
 
-#define OPT_ARG_STRING "shab:d:f:l:r:c:e:o:Aw"
+#define OPT_ARG_STRING "shab:d:f:l:r:c:e:o:Awu"
 
 //Global Variables
 unsigned int*       barrier             = NULL;
@@ -52,6 +53,11 @@ Buffer*				buffer;
 Result_vector_t     Results;
 std::stringstream   ss, ss1;
 Options             opt;
+
+// Set by command line arg, indicates if more info should be displayed.
+// Primarily used because I don't know if scripts rely on output being
+// in a specific format
+bool human_readable = false;
 
 //We should add a sanity check to ensure that the dataset is a multiple of 
 //the element size, otherwise we might have half sized elements, which could force
@@ -70,6 +76,7 @@ main( int argc, char* const argv[] ) {
 
     Parse_options(argc, argv, opt);
 
+    // Perform some setup
     if(!Configure_experiment())
         error("ERROR: Configuring");
 
@@ -135,21 +142,33 @@ main( int argc, char* const argv[] ) {
         error("ERROR: Reading results");
 
     //Result output
-    *output << (opt.dataset >> 10)
-        << ' ' << opt.duration
-        << ' ' << accesscount
-        << ' ' << opt.cacheline
-        << ' ' << opt.bufferfactor
-        << ' ' << opt.loopfactor
-        //<< ' ' << dummy 
-        << ' ' << distr->getEntries() << '/' << distr->getNumElements()
-        << ' ' << std::setprecision(3) << ((double)distr->getBufferUtilization())
-        << ' ' << std::setprecision(0) << std::setw(0) 
-        << ' ' << index
-        << std::endl;
+    *output
+        << (human_readable ? "dataset=" : "") << (opt.dataset >> 10)
+        << (human_readable ? CRNL : "")
+        << (human_readable ? "duration=" : " ") << opt.duration
+        << (human_readable ? CRNL : "")
+        << (human_readable ? "access count=" : " ") << accesscount
+        << (human_readable ? CRNL : "")
+        << (human_readable ? "cacheline=" : " ") << opt.cacheline
+        << (human_readable ? CRNL : "")
+        << (human_readable ? "buffer factor=" : " ") << opt.bufferfactor
+        << (human_readable ? CRNL : "")
+        << (human_readable ? "loop factor=" : " ") << opt.loopfactor
+        << (human_readable ? CRNL : "")
+        //<< ' ' << dummy
+        << (human_readable ? "entries/elems=" : " ") << distr->getEntries() << '/' << distr->getNumElements()
+        << (human_readable ? CRNL : "")
+        << (human_readable ? "buffer util=" : " ") << std::setprecision(3) << ((double)distr->getBufferUtilization())
+        << (human_readable ? CRNL : "")
+        << (human_readable ? "idx=" : "  " /*2 spaces here in original code*/)
+            << std::setprecision(0) << std::setw(0) << index
+        << CRNL;
 
     *output << "Perf"
-        <<  ' ' << (opt.dataset >>10);
+        << (human_readable ? CRNL : "")
+        << (human_readable ? "  dataset=" : " ") << (opt.dataset >> 10)
+        << (human_readable ? CRNL : "")
+        << (human_readable ? "  results=" : "");
 	for(std::vector<Result_t>::iterator it = results.begin(); it != results.end(); it++)
 		*output << " " << *it;
     *output << std::endl;
@@ -191,6 +210,7 @@ static void usage( const char* program ) {
     std::cerr << "-A Append output when using files" << std::endl;
     std::cerr << "-w Wait for signal before executing" << std::endl;
     std::cerr << "-s Dump the sequence pattern" << std::endl;
+    std::cerr << "-u Print human readable messages" << std::endl;
     exit(1);
 }
 
@@ -232,6 +252,7 @@ Parse_options( int argc, char * const *argv, Options &opt)
             case 'A': opt.append = true; break;
             case 'w': opt.wait = true; break;
             case 's': opt.dumpSeq = true; break;
+            case 'u': human_readable = true; break;
             default: usage( argv[0] ); break;
         }
     }
