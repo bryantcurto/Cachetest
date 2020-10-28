@@ -69,40 +69,18 @@ void error(std::string code)
     exit(1);
 }
 
-int 
-main( int argc, char* const argv[] ) {
+struct LoopResult {
+	long long accesscount;
+	unsigned int index;
+};
 
-	Initialize();
-
-    Parse_options(argc, argv, opt);
-
-    // Perform some setup
-    if(!Configure_experiment())
-        error("ERROR: Configuring");
-
-    if(!Setup_buffer())
-        error("ERROR: Setup_buffer");
-
-    if(!Setup_perf())
-        error("ERROR: Setup Perf");
-
-    if(!Setup_distribution())
-        error("ERROR: Distribution");
-
-    if(!Synchronize_instances())
-        error("ERROR: Synchronizing");
-
-    if(!Setup_timeout())
-        error("ERROR: Alarm");
-
+LoopResult loop(const unsigned int startIndex) {
     register long long accesscount = 0;
-    register unsigned int index = 0;
     register unsigned int stop = START_CODE;
-    unsigned char* startAddr = NULL;
     unsigned int dummy=0;
 
-    startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
-    index = (unsigned long long)buffer->Get_start_address() - (unsigned long long)buffer->Get_buffer_pointer();
+    register unsigned int index = startIndex;
+    unsigned char* startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
 
     barrier = &dummy;    //Calculate the upper bound for the sig handler to search
 
@@ -134,6 +112,38 @@ main( int argc, char* const argv[] ) {
         if ( tester == EXIT_CODE) break;
     }
 
+	return LoopResult{.accesscount=accesscount, .index=index};
+}
+
+int 
+main( int argc, char* const argv[] ) {
+
+	Initialize();
+
+    Parse_options(argc, argv, opt);
+
+    // Perform some setup
+    if(!Configure_experiment())
+        error("ERROR: Configuring");
+
+    if(!Setup_buffer())
+        error("ERROR: Setup_buffer");
+
+    if(!Setup_perf())
+        error("ERROR: Setup Perf");
+
+    if(!Setup_distribution())
+        error("ERROR: Distribution");
+
+    if(!Synchronize_instances())
+        error("ERROR: Synchronizing");
+
+    if(!Setup_timeout())
+        error("ERROR: Alarm");
+
+	unsigned int startIndex = (unsigned long long)(buffer->Get_start_address() - buffer->Get_buffer_pointer());
+    LoopResult loopRes = loop(startIndex);
+
     //Get the Perf data
 	std::vector<Result_t> results;
     if( Measured_events != NULL != 0 && !perf->stop() )
@@ -147,7 +157,7 @@ main( int argc, char* const argv[] ) {
         << (human_readable ? CRNL : "")
         << (human_readable ? "duration=" : " ") << opt.duration
         << (human_readable ? CRNL : "")
-        << (human_readable ? "access count=" : " ") << accesscount
+        << (human_readable ? "access count=" : " ") << loopRes.accesscount
         << (human_readable ? CRNL : "")
         << (human_readable ? "cacheline=" : " ") << opt.cacheline
         << (human_readable ? CRNL : "")
@@ -161,7 +171,7 @@ main( int argc, char* const argv[] ) {
         << (human_readable ? "buffer util=" : " ") << std::setprecision(3) << ((double)distr->getBufferUtilization())
         << (human_readable ? CRNL : "")
         << (human_readable ? "idx=" : "  " /*2 spaces here in original code*/)
-            << std::setprecision(0) << std::setw(0) << index
+            << std::setprecision(0) << std::setw(0) << loopRes.index
         << CRNL;
 
     *output << "Perf"
@@ -352,11 +362,14 @@ Setup_distribution()
     // write operation in the runtime loop below
     distr = NULL;
     if ( opt.seed >= 0 ) {
+		std::cout << "Uniform distribution used" << std::endl;
         distr = Distribution::createDistribution(Distribution::UNIFORM,buffer,opt.cacheline,sizeof(element_size_t),opt.seed);
     }else{
+		std::cout << "Uniform distribution used" << std::endl;
         distr = Distribution::createDistribution(Distribution::LINEAR,buffer,opt.cacheline,sizeof(element_size_t),opt.seed);
     }
     distr->distribute();
+
 #ifdef DEBUG_CREATE
     int dumpfd = open("bufferdump.dat",O_CREAT | O_RDWR, S_IRWXU);
     distr->dumpBuffer(dumpfd);
@@ -364,6 +377,7 @@ Setup_distribution()
     ss1 << "frameDump_" << opt.cpu << ".dat";
     ss << "sequencedump_" << opt.cpu << ".dat";
     unlink(ss.str().c_str());
+
     int seqdumpfd = open(ss.str().c_str(),O_CREAT | O_RDWR, S_IRWXU);
     if(opt.dumpSeq)
         distr->dumpSequence(seqdumpfd); 
