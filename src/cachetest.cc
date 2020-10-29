@@ -9,6 +9,7 @@
 #include <sched.h>
 #include <sys/time.h>
 #include <vector>
+#include <utility>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -67,6 +68,82 @@ void error(std::string code)
 {
     std::cerr << code << std::endl;
     exit(1);
+}
+
+/* This function alters the indices stored within the buffer so that the
+ * pointer chasing path is split into subpaths. Each subpath is a new
+ * pointer chasing path, each pair has a difference in lenth <= 1, and
+ * the locations spanned by the subpath matches the locations spanned
+ * by the original.
+ * Returns the starting index of each subpath
+ */
+std::vector<element_size_t> splitPointerChasingPath(const element_size_t numPaths) {
+	auto printPath = [](element_size_t idx) {
+		std::cout << "Path:" << std::endl;
+		const element_size_t firstIdx = idx;
+		size_t length = 0;
+		do {
+			std::cout << idx << ", ";
+			length += 1;
+			idx = *(element_size_t *)(buffer->Get_buffer_pointer() + idx);
+		} while (firstIdx != idx);
+
+		std::cout << std::endl << "  length=" << length << " vs " << distr->getEntries() << std::endl;
+	};
+
+	/*
+	// Log input pointer chaising path
+	std::cout << "Input ";
+	printPath(buffer->Get_start_address() - buffer->Get_buffer_pointer());
+	*/
+
+	// Try to evenly split entries in original pointer chaising path
+	// amongst the new paths. Assign extras to earlier paths.
+	const element_size_t minPathLength = distr->getEntries() / numPaths;
+	if (0 == minPathLength) {
+		std::cerr << "Can't split path of length " << distr->getEntries() << " into "
+				  << numPaths << " parts" << std::endl;
+		exit(-1);
+	}
+	element_size_t extras = distr->getEntries() - minPathLength * numPaths;
+
+	// Figure out the addresses of the first and last entries of each path
+	std::vector<std::pair<element_size_t, element_size_t> > pathStartEndIndices;
+	element_size_t unusedEntryIdx = buffer->Get_start_address() - buffer->Get_buffer_pointer();
+	for (element_size_t i = 0; i < numPaths; i++) {
+		const element_size_t startIdx = unusedEntryIdx;
+		for (element_size_t j = 1 /* account for starting entry */; j < minPathLength; ++j) {
+			unusedEntryIdx = *(element_size_t *)(buffer->Get_buffer_pointer() + unusedEntryIdx);
+		}
+		if (extras > 0) {
+			unusedEntryIdx = *(element_size_t *)(buffer->Get_buffer_pointer() + unusedEntryIdx);
+			--extras;
+		}
+		const element_size_t endIdx = unusedEntryIdx;
+		unusedEntryIdx = *(element_size_t *)(buffer->Get_buffer_pointer() + unusedEntryIdx);
+		pathStartEndIndices.emplace_back(startIdx, endIdx);
+	}
+
+	// Make the last entry in each path refer to the first
+	for (auto& pathPair : pathStartEndIndices) {
+		*(element_size_t*)(buffer->Get_buffer_pointer() + pathPair.second) = pathPair.first;
+	}
+
+	// Collect the staring indices to return
+	std::vector<element_size_t> pathStartIndices;
+	for (auto& pathPair : pathStartEndIndices) {
+		pathStartIndices.emplace_back(pathPair.first);
+	}
+
+	/*
+	// Log output pointer chaising paths
+	std::cout << "New paths:" << std::endl;
+	for (element_size_t idx : pathStartIndices) {
+		printPath(idx);
+	}
+	*/
+
+	return pathStartIndices;
 }
 
 struct LoopResult {
