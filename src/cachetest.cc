@@ -47,7 +47,7 @@ void * WRITEBACK_VAR;
 #define START_CODE 4711u
 #define EXIT_CODE 4710u
 
-#define OPT_ARG_STRING "shab:d:f:l:r:c:e:o:Awu"
+#define OPT_ARG_STRING "T:C:IM:shab:d:f:l:r:c:e:o:Aw"
 
 //Global Variables
 unsigned int*       barrier             = NULL;
@@ -77,6 +77,21 @@ void error(std::string code)
 {
     std::cerr << code << std::endl;
     exit(1);
+}
+
+std::vector<std::string> split(const std::string& str, const std::string& del) {
+	std::vector<std::string> tokens;
+
+	size_t offset = 0;
+	auto it = str.find(del);
+	while (std::string::npos != it) {
+		tokens.emplace_back(str.substr(offset, it - offset));
+		offset += tokens.back().size() + del.size();
+		it = str.find(del, offset);
+	}
+	tokens.emplace_back(str.substr(offset, it));
+
+	return tokens;
 }
 
 /* This function alters the indices stored within the buffer so that the
@@ -384,6 +399,12 @@ static void alarm_handler( int ) {
 static void usage( const char* program ) {
     std::cerr << "usage: " << program << " [options] <dataset in KB> [output file] [error output file]" << std::endl;
     std::cerr << "options:" << std::endl;
+	std::cerr << "-T CSV of threads per subpath (default: 1 thread on 1 subpath)" << std::endl;
+	std::cerr << "-C CSV *or* range (M-N) of CPU ids to which all threads are pinned" << std::endl;
+	std::cerr << "   Secify CPUs per subpath threads by specifying CSVs/ranges separated by a period (\".\") (default: no pinning)" << std::endl;
+	std::cerr << "-I Enable individual pinning i.e., pin 1 thread pinned to 1 CPU (default: group pinning)" << std::endl;
+	std::cerr << "-M Pin main thread to specified core (default: not pinned)" << std::endl;
+	std::cerr << std::endl;
     std::cerr << "-a require physically contigous memory (default: no)" << std::endl;
     std::cerr << "-b buffer factor (default: 1)" << std::endl;
     std::cerr << "-d duration in seconds (default: 1)" << std::endl;
@@ -423,10 +444,19 @@ void pinExperiment(int cpu) {
 bool
 Parse_options( int argc, char * const *argv, Options &opt)
 {
+
+	std::string threadsInput = "";
+	std::string cpuIdsInput = "";
+	bool groupPinning = true;
     for (;;) {
         int option = getopt( argc, argv, OPT_ARG_STRING );
         if ( option < 0 ) break;
         switch(option) {
+			case 'T': threadsInput = optarg; break;
+			case 'C': cpuIdsInput = optarg; break;
+			case 'I': groupPinning = false; break;
+			case 'M': mainThreadCPUId = atoi(optarg); break;
+
             case 'b': opt.bufferfactor = atoi( optarg ); break;
             case 'd': opt.duration = atoi( optarg ); break;
             case 'f': opt.loopfactor = atoi( optarg ); break;
@@ -467,6 +497,101 @@ Parse_options( int argc, char * const *argv, Options &opt)
     }//if
     else
         error_out = &std::cout;
+
+	// Get the number of threads per subpath (and inherantly how many subpaths to create)
+	if (0 == threadsInput.size()) {
+		subpathThreadCounts.emplace_back(1);
+	} else {
+		auto tmp = split(threadsInput, ",");
+		std::transform(tmp.begin(), tmp.end(), std::back_inserter(subpathThreadCounts),
+					  [](const std::string& s) { return (size_t)std::stoull(s); });
+	}
+	numSubpaths = subpathThreadCounts.size();
+
+	// Parse input string to determine which CPUs to pin to which threads
+	if (cpuIdsInput.size() > 0) {
+		std::vector<std::vector<int> > cpuIdsList;
+
+		// Parse input
+		for (const std::string& cpuIdsStr : split(cpuIdsInput, ".")) {
+			std::vector<int> cpuIds;
+
+			if (std::string::npos != cpuIdsStr.find("-")) {
+				auto range = split(cpuIdsStr, "-");
+				assert(range.size() == 2);
+				for (int id = std::stoi(range[0]); id <= std::stoi(range[1]); id++) {
+					cpuIds.emplace_back(id);
+				}
+			} else {
+				for (const auto& id : split(cpuIdsStr, ",")) {
+					cpuIds.emplace_back(std::stoi(id));
+				}
+			}
+			assert(cpuIds.size() > 0);
+			cpuIdsList.emplace_back(cpuIds);
+		}
+
+		// Make sure that largest CPU index is < CPU_SETSIZE
+		{
+			int maxCPUId = std::accumulate(cpuIdsList.begin(), cpuIdsList.end(), 0,
+					[](int max, std::vector<int> cpuIds) {
+						return std::max(max, *std::max_element(cpuIds.begin(), cpuIds.end()));
+					});
+			maxCPUId = std::max(maxCPUId, mainThreadCPUId);
+			assert(maxCPUId < CPU_SETSIZE);
+		}
+
+		// Make sure either one set of CPUs is specified, or
+		// one set is specified per subpath
+		assert(1 == cpuIdsList.size() || (cpuIdsList.size() == cpuIdsList.size()));
+
+		// Duplicate the single set of specified CPUs for each subpath
+		if (1 == cpuIdsList.size() && numSubpaths > 1) {
+			for (size_t i = 0; i < numSubpaths - 1; i++) {
+				cpuIdsList.emplace_back(cpuIdsList[0]);
+			}
+		}
+
+		// Create mapping from thread to CPU set
+		for (size_t i = 0; i < numSubpaths; i++) {
+			const std::vector<int>& subpathCPUIds = cpuIdsList[i];
+			const size_t numThreads = subpathThreadCounts[i];
+			std::vector<std::unordered_set<int> > subpathThreadCPUIds;
+
+			if (groupPinning) {
+				// Each thread in subpath gets pinned to same set of CPUIds
+				std::unordered_set<int> cpuIds(subpathCPUIds.begin(), subpathCPUIds.end());
+				assert(cpuIds.size() == subpathCPUIds.size()); // Otherwise, they specified duplicate cpuId id!
+
+				for (size_t i = 0; i < numThreads; i++) {
+					subpathThreadCPUIds.emplace_back(cpuIds);
+				}
+			} else {
+				// Each thread in each subpath gets pinned to specified core
+				assert(numThreads == subpathCPUIds.size());
+				for (int cpuId : subpathCPUIds) {
+					subpathThreadCPUIds.emplace_back(std::unordered_set<int>({cpuId}));
+				}
+			}
+			cpuIdSets.emplace_back(subpathThreadCPUIds);
+		}
+
+#ifdef DEBUG
+		// Log correspondence between threads and cores
+		std::cout << "Specified CPU Pins:" << std::endl;
+		for (auto subpathCPUIds : cpuIdSets) {
+			std::cout << "> Subpath:" << std::endl;
+			for (auto thrCPUIds : subpathCPUIds) {
+				std::cout << ">> Thread CPU Ids: ";
+				for (int cpuId : thrCPUIds) {
+					std::cout << cpuId << " ";
+				}
+				std::cout << std::endl;
+			}
+		}
+#endif
+	}
+
     return true;
 }
 
