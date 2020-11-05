@@ -6,6 +6,7 @@ cachetest_SOURCES = cachetest.cc Distribution.cc Buffer.cc genzipf.cc Perf_PAPI.
 else
 cachetest_SOURCES = cachetest.cc Distribution.cc Buffer.cc genzipf.cc Perf_Cachetest.cc Perf.cc Small_buffer.cc Large_buffer.cc
 endif
-
+cachetest_LDADD = -lpthread
 
 AM_CPPFLAGS = -I./include
+AM_CXXFLAGS = -std=c++11
