@@ -4,11 +4,17 @@
 #include <cstdlib>
 #include <csignal>
 #include <cstring>
+#include <thread>
+#include <mutex>
+#include <atomic>
 #include <unistd.h>
 #include <iomanip>
 #include <sched.h>
 #include <sys/time.h>
 #include <vector>
+#include <unordered_set>
+#include <algorithm>
+#include <numeric>
 #include <utility>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -21,6 +27,9 @@
 #include "zipf.h"
 #include <Prototypes.hpp>
 #include <config.h>
+
+#include <pthread.h>
+#include <sched.h>
 
 #include <Perf.hpp>
 //Defs
@@ -42,7 +51,7 @@ void * WRITEBACK_VAR;
 
 //Global Variables
 unsigned int*       barrier             = NULL;
-static cpu_set_t*   cpuset              = NULL;
+//static cpu_set_t*   cpuset              = NULL;
 std::ostream*       output              = NULL;
 std::ostream*       error_out           = NULL;
 Distribution*       distr               = NULL;
@@ -53,6 +62,12 @@ Buffer*				buffer;
 Result_vector_t     Results;
 std::stringstream   ss, ss1;
 Options             opt;
+
+std::vector<size_t> subpathThreadCounts;
+size_t numSubpaths;
+std::vector<std::vector<std::unordered_set<int> > > cpuIdSets;
+int mainThreadCPUId = -1;
+std::atomic<bool> stopExperiment(false);
 
 //We should add a sanity check to ensure that the dataset is a multiple of 
 //the element size, otherwise we might have half sized elements, which could force
@@ -172,6 +187,7 @@ LoopResult loop(const unsigned int startIndex) {
         index = next;
         accesscount += 1;
 
+/*
         register unsigned int tester;
 
 #if defined(__powerpc__)
@@ -181,6 +197,10 @@ LoopResult loop(const unsigned int startIndex) {
 #endif
         asm("#Exit");
         if ( tester == EXIT_CODE) break;
+*/
+		if (stopExperiment.load()) {
+			break;
+		}
     }
 
 	return LoopResult{.accesscount=accesscount, .index=index};
@@ -209,11 +229,81 @@ main( int argc, char* const argv[] ) {
     if(!Synchronize_instances())
         error("ERROR: Synchronizing");
 
+	// Spawn threads
+	std::vector<element_size_t> startIndices = splitPointerChasingPath(numSubpaths);
+	std::vector<std::thread> threads;
+	std::vector<std::vector<LoopResult> > loopResults;
+	for (size_t threadCount : subpathThreadCounts) {
+		loopResults.emplace_back(std::vector<LoopResult>(threadCount));
+	}
+	std::mutex mutex;
+
+	std::atomic<bool> startExperiment(false);
+	assert(std::atomic<bool>().is_lock_free());
+
+	std::atomic<size_t> numAtBarrior(0);
+	assert(std::atomic<size_t>().is_lock_free());
+	for(size_t i = 0; i < subpathThreadCounts.size(); i++) {
+		for(size_t j = 0; j < subpathThreadCounts[i]; j++) {
+			threads.emplace_back([i,j,&numAtBarrior,&startExperiment,&startIndices,&loopResults,&mutex]() {
+				if (cpuIdSets.size() > 0) {
+					// Create set of CPUs to which this thread is pinned
+					cpu_set_t cpuset;
+					CPU_ZERO(&cpuset);
+					for (int cpu : cpuIdSets[i][j]) {
+						CPU_SET(cpu, &cpuset);
+					}
+
+					// Pin thread to CPUs
+					assert(0 == pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset));
+				}
+
+#ifdef DEBUG
+				std::string cpuIds = "";
+				if (cpuIdSets.size() > 0) {
+					cpuIds = std::accumulate(cpuIdSets[i][j].begin(), cpuIdSets[i][j].end(), std::string(""),
+							[](std::string s, int cpuId){ return s + std::to_string(cpuId) + ","; });
+					cpuIds = " (pinned to CPUs: " + cpuIds + ") ";
+				}
+				std::cout << "Thread " << pthread_self() << cpuIds
+						  << " looping over path starting at " << startIndices[i] << std::endl;
+#endif
+
+				// Have all threads wait at barrior until main thread starts test
+				numAtBarrior.fetch_add(1);
+				while (!startExperiment.load());
+
+				LoopResult res = loop(startIndices[i]);
+
+				// I don't think we need to use a mutex here, but let's just be safe...
+				const std::lock_guard<std::mutex> lock(mutex);
+				loopResults[i][j] = res;
+			});
+		}
+	}
+
+	// Pin main thread to specified core
+	if (mainThreadCPUId >= 0) {
+		cpu_set_t cpuset;
+		CPU_ZERO(&cpuset);
+		CPU_SET(mainThreadCPUId, &cpuset);
+		assert(0 == pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset));
+	}
+
+	// Officially start test timer!
     if(!Setup_timeout())
         error("ERROR: Alarm");
 
-	unsigned int startIndex = (unsigned long long)(buffer->Get_start_address() - buffer->Get_buffer_pointer());
-    LoopResult loopRes = loop(startIndex);
+	// Wait for all threads to be ready!
+	while (numAtBarrior.load() != threads.size());
+
+	// Let threads loose!
+	startExperiment.store(true);
+
+	// Wit for timer to go off and threads to finish
+	for (std::thread& t : threads) {
+		t.join();
+	}
 
     //Get the Perf data
 	std::vector<Result_t> results;
@@ -226,14 +316,39 @@ main( int argc, char* const argv[] ) {
     *output
         << "dataset="  << (opt.dataset >> 10) << std::endl
         << "duration="  << opt.duration << std::endl
-        << "access count="  << loopRes.accesscount << std::endl
         << "cacheline="  << opt.cacheline << std::endl
         << "buffer factor="  << opt.bufferfactor << std::endl
         << "loop factor="  << opt.loopfactor << std::endl
         //<< ' ' << dummy
         << "entries/elems="  << distr->getEntries() << '/' << distr->getNumElements() << std::endl
-        << "buffer util="  << std::setprecision(3) << ((double)distr->getBufferUtilization()) << std::endl
-        << "idx=" << std::setprecision(0) << std::setw(0) << loopRes.index << std::endl;
+        << "buffer util="  << std::setprecision(3) << ((double)distr->getBufferUtilization()) << std::endl;
+	*output << std::endl;
+
+	// Log per-thread access counts
+	*output << "Per-thread results" << std::endl;
+	for (size_t i = 0; i < loopResults.size(); i++) {
+		for (size_t j = 0; j < loopResults[i].size(); j++) {
+			*output << "Subpath " << i << "/Thread " << j << " access count="
+					<< loopResults[i][j].accesscount << std::endl;
+		}
+	}
+	*output << std::endl;
+
+	// Log per-subpath access counts
+	*output << "Per-subpath results" << std::endl;
+	std::vector<size_t> subpathAccessCounts;
+	for (size_t i = 0; i < loopResults.size(); i++) {
+		subpathAccessCounts.emplace_back(
+				std::accumulate(loopResults[i].begin(), loopResults[i].end(), 0,
+								[](size_t count, LoopResult res) { return count + res.accesscount; }));
+		*output << "subpath " << i << " access count=" << subpathAccessCounts.back() << std::endl;
+	}
+	*output << std::endl;
+
+	// Log total access count
+	*output << "total access count="
+			<< std::accumulate(subpathAccessCounts.begin(), subpathAccessCounts.end(), 0)
+			<< std::endl << std::endl;
 
     *output << "Perf" << std::endl
         << "  dataset="  << (opt.dataset >> 10) << std::endl
@@ -254,6 +369,7 @@ static void start_handler( int )
 }
 
 static void alarm_handler( int ) {
+/*
     unsigned int sp = 0;
     for (volatile unsigned int *x = &sp; x <= barrier; x += 1) {
 #ifdef DEBUG_ALARM
@@ -261,6 +377,8 @@ static void alarm_handler( int ) {
 #endif
         if (*x == START_CODE) *x = EXIT_CODE;
     }
+*/
+	stopExperiment.store(true);
 }
 
 static void usage( const char* program ) {
@@ -282,6 +400,7 @@ static void usage( const char* program ) {
     exit(1);
 }
 
+/*
 void pinExperiment(int cpu) {
     size_t size;
 
@@ -299,6 +418,7 @@ void pinExperiment(int cpu) {
 
     sched_setaffinity(getpid(),size,cpuset);
 }
+*/
 
 bool
 Parse_options( int argc, char * const *argv, Options &opt)
@@ -366,9 +486,11 @@ Configure_experiment()
         exit(1);
     }
 
+	/*
     //Pin this process
     if(opt.cpu >= 0)
         pinExperiment(opt.cpu);
+	*/
     return true;
 }
 
