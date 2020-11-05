@@ -85,11 +85,11 @@ std::vector<element_size_t> splitPointerChasingPath(const element_size_t numPath
 		std::cout << std::endl << "  length=" << length << " vs " << distr->getEntries() << std::endl;
 	};
 
-	/*
+#ifdef DEBUG
 	// Log input pointer chaising path
 	std::cout << "Input ";
 	printPath(buffer->Get_start_address() - buffer->Get_buffer_pointer());
-	*/
+#endif
 
 	// Try to evenly split entries in original pointer chaising path
 	// amongst the new paths. Assign extras to earlier paths.
@@ -129,13 +129,13 @@ std::vector<element_size_t> splitPointerChasingPath(const element_size_t numPath
 		pathStartIndices.emplace_back(pathPair.first);
 	}
 
-	/*
+#ifdef DEBUG
 	// Log output pointer chaising paths
 	std::cout << "New paths:" << std::endl;
 	for (element_size_t idx : pathStartIndices) {
 		printPath(idx);
 	}
-	*/
+#endif
 
 	return pathStartIndices;
 }
@@ -422,7 +422,7 @@ Setup_distribution()
 		std::cout << "Uniform distribution used" << std::endl;
         distr = Distribution::createDistribution(Distribution::UNIFORM,buffer,opt.cacheline,sizeof(element_size_t),opt.seed);
     }else{
-		std::cout << "Uniform distribution used" << std::endl;
+		std::cerr << "LINEAR DISTRIBUTION should NOT be used for EXPERIMENT, specify non-negative seed!" << std::endl;
         distr = Distribution::createDistribution(Distribution::LINEAR,buffer,opt.cacheline,sizeof(element_size_t),opt.seed);
     }
     distr->distribute();
