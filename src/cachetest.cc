@@ -187,12 +187,12 @@ struct LoopResult {
 /*
  * Perform that pointer chasing by a single OS thread/ULT
  */
-LoopResult loop(const unsigned int startIndex) {
+LoopResult loop(const element_size_t startIndex) {
     register long long accesscount = 0;
     register unsigned int stop = START_CODE;
     unsigned int dummy=0;
 
-    register unsigned int index = startIndex;
+    register element_size_t index = startIndex;
     unsigned char* startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
 
     if(Measured_events != NULL && !perf->start())
@@ -200,7 +200,7 @@ LoopResult loop(const unsigned int startIndex) {
 
     asm ("#//Loop Starts here");
     for (;;) {
-		if (index < 0) {
+		if (index == (element_size_t)-1) {
 			// The test is done!
 			// When the alarm goes off, subloops are intentionally broken
 			// to notify the threads that the test is done. This is done
