@@ -6,7 +6,8 @@ cachetest_SOURCES = cachetest.cc Distribution.cc Buffer.cc genzipf.cc Perf_PAPI.
 else
 cachetest_SOURCES = cachetest.cc Distribution.cc Buffer.cc genzipf.cc Perf_Cachetest.cc Perf.cc Small_buffer.cc Large_buffer.cc
 endif
-cachetest_LDADD = -lpthread
+cachetest_LDADD = -lpthread -L../deps/libfibre/src/ -lfibre
 
-AM_CPPFLAGS = -I./include
+
+AM_CPPFLAGS = -I./include -I../deps/libfibre/src/
 AM_CXXFLAGS = -std=c++11
