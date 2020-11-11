@@ -67,7 +67,7 @@ std::vector<size_t> subpathThreadCounts;
 size_t numSubpaths;
 std::vector<std::vector<std::unordered_set<int> > > cpuIdSets;
 int mainThreadCPUId = -1;
-std::atomic<bool> stopExperiment(false);
+std::vector<element_size_t> subpathStartIndices;
 
 //We should add a sanity check to ensure that the dataset is a multiple of 
 //the element size, otherwise we might have half sized elements, which could force
@@ -183,14 +183,22 @@ LoopResult loop(const unsigned int startIndex) {
     register unsigned int index = startIndex;
     unsigned char* startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
 
-    barrier = &dummy;    //Calculate the upper bound for the sig handler to search
-
     if(Measured_events != NULL && !perf->start())
         error("ERROR: Can't start counters");
 
     asm ("#//Loop Starts here");
     for (;;) {
+		if (index < 0) {
+			// The test is done!
+			// When the alarm goes off, subloops are intentionally broken
+			// to notify the threads that the test is done. This is done
+			// to avoid loading anything new into cache each loop to
+			// check if test is done.
+			break;
+		}
+
         element_size_t next = *(element_size_t*)(startAddr + index);
+
         //for ( int j = 0; j < loopfactor; j += 1 ) dummy *= next;
 #ifdef WRITEBACK
         *(element_size_t*)(startAddr + index + sizeof(int)) = dummy;
@@ -199,23 +207,10 @@ LoopResult loop(const unsigned int startIndex) {
         std::cout << index << ' ' << next << std::endl;
         std::cout << std::hex << (element_size_t*)(startAddr+index) << std::dec << std::endl;
 #endif
+
         index = next;
         accesscount += 1;
-
-/*
-        register unsigned int tester;
-
-#if defined(__powerpc__)
-        asm volatile ("mr %0,%1" : "=r" (tester) : "r" (stop) );
-#else
-        asm volatile ("movl %1, %0" : "=r" (tester) : "r" (stop) );    //This tricks the Compiler
-#endif
         asm("#Exit");
-        if ( tester == EXIT_CODE) break;
-*/
-		if (stopExperiment.load()) {
-			break;
-		}
     }
 
 	return LoopResult{.accesscount=accesscount, .index=index};
@@ -245,7 +240,7 @@ main( int argc, char* const argv[] ) {
         error("ERROR: Synchronizing");
 
 	// Spawn threads
-	std::vector<element_size_t> startIndices = splitPointerChasingPath(numSubpaths);
+	subpathStartIndices = splitPointerChasingPath(numSubpaths);
 	std::vector<std::thread> threads;
 	std::vector<std::vector<LoopResult> > loopResults;
 	for (size_t threadCount : subpathThreadCounts) {
@@ -260,7 +255,7 @@ main( int argc, char* const argv[] ) {
 	assert(std::atomic<size_t>().is_lock_free());
 	for(size_t i = 0; i < subpathThreadCounts.size(); i++) {
 		for(size_t j = 0; j < subpathThreadCounts[i]; j++) {
-			threads.emplace_back([i,j,&numAtBarrior,&startExperiment,&startIndices,&loopResults,&mutex]() {
+			threads.emplace_back([i,j,&numAtBarrior,&startExperiment,&loopResults,&mutex]() {
 				if (cpuIdSets.size() > 0) {
 					// Create set of CPUs to which this thread is pinned
 					cpu_set_t cpuset;
@@ -281,14 +276,14 @@ main( int argc, char* const argv[] ) {
 					cpuIds = " (pinned to CPUs: " + cpuIds + ") ";
 				}
 				std::cout << "Thread " << pthread_self() << cpuIds
-						  << " looping over path starting at " << startIndices[i] << std::endl;
+						  << " looping over path starting at " << subpathStartIndices[i] << std::endl;
 #endif
 
 				// Have all threads wait at barrior until main thread starts test
 				numAtBarrior.fetch_add(1);
 				while (!startExperiment.load());
 
-				LoopResult res = loop(startIndices[i]);
+				LoopResult res = loop(subpathStartIndices[i]);
 
 				// I don't think we need to use a mutex here, but let's just be safe...
 				const std::lock_guard<std::mutex> lock(mutex);
@@ -384,16 +379,11 @@ static void start_handler( int )
 }
 
 static void alarm_handler( int ) {
-/*
-    unsigned int sp = 0;
-    for (volatile unsigned int *x = &sp; x <= barrier; x += 1) {
-#ifdef DEBUG_ALARM
-        printf("stack: %d\n", *x);
-#endif
-        if (*x == START_CODE) *x = EXIT_CODE;
-    }
-*/
-	stopExperiment.store(true);
+	// Notify looping threads that test is done by breaking
+	// the subloops (i.e., setting invalid indices)
+	for (const element_size_t index : subpathStartIndices) {
+		*(element_size_t*)(buffer->Get_buffer_pointer() + index) = -1;
+	}
 }
 
 static void usage( const char* program ) {
