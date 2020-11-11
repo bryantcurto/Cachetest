@@ -79,6 +79,10 @@ void error(std::string code)
     exit(1);
 }
 
+/*
+ * Split string by a delimiter very similar to Python2's string split().
+ * e.g.: "1,2,3,4" --> vector{"1", "2", "3", "4"}
+ */
 std::vector<std::string> split(const std::string& str, const std::string& del) {
 	std::vector<std::string> tokens;
 
@@ -94,7 +98,8 @@ std::vector<std::string> split(const std::string& str, const std::string& del) {
 	return tokens;
 }
 
-/* This function alters the indices stored within the buffer so that the
+/*
+ * This function alters the indices stored within the buffer so that the
  * pointer chasing path is split into subpaths. Each subpath is a new
  * pointer chasing path, each pair has a difference in lenth <= 1, and
  * the locations spanned by the subpath matches the locations spanned
@@ -170,11 +175,18 @@ std::vector<element_size_t> splitPointerChasingPath(const element_size_t numPath
 	return pathStartIndices;
 }
 
+/*
+ * Structure for holding results of calling loop()
+ * for a single OS thread/ULT
+ */
 struct LoopResult {
 	long long accesscount;
 	unsigned int index;
 };
 
+/*
+ * Perform that pointer chasing by a single OS thread/ULT
+ */
 LoopResult loop(const unsigned int startIndex) {
     register long long accesscount = 0;
     register unsigned int stop = START_CODE;
@@ -416,26 +428,6 @@ static void usage( const char* program ) {
     exit(1);
 }
 
-/*
-void pinExperiment(int cpu) {
-    size_t size;
-
-    //FIXME this shouldn't be hardcoded here?
-    cpuset = CPU_ALLOC(100);
-    if(cpuset == NULL) {
-        perror("CPU_ALLOC");
-        exit(EXIT_FAILURE);
-    }
-
-    size = CPU_ALLOC_SIZE(100);
-
-    CPU_ZERO_S(size, cpuset);
-    CPU_SET(cpu, cpuset);
-
-    sched_setaffinity(getpid(),size,cpuset);
-}
-*/
-
 bool
 Parse_options( int argc, char * const *argv, Options &opt)
 {
@@ -572,7 +564,7 @@ Parse_options( int argc, char * const *argv, Options &opt)
 		}
 
 #ifdef DEBUG
-		// Log correspondence between threads and cores
+		// Log correspondence between threads of a subpath and cores
 		std::cout << "Specified CPU Pins:" << std::endl;
 		for (auto subpathCPUIds : cpuIdSets) {
 			std::cout << "> Subpath:" << std::endl;
