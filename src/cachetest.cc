@@ -249,10 +249,9 @@ main( int argc, char* const argv[] ) {
 	std::mutex mutex;
 
 	std::atomic<bool> startExperiment(false);
-	assert(std::atomic<bool>().is_lock_free());
-
+	assert(startExperiment.is_lock_free());
 	std::atomic<size_t> numAtBarrior(0);
-	assert(std::atomic<size_t>().is_lock_free());
+	assert(numAtBarrior.is_lock_free());
 	for(size_t i = 0; i < subpathThreadCounts.size(); i++) {
 		for(size_t j = 0; j < subpathThreadCounts[i]; j++) {
 			threads.emplace_back([i,j,&numAtBarrior,&startExperiment,&loopResults,&mutex]() {
@@ -266,6 +265,12 @@ main( int argc, char* const argv[] ) {
 
 					// Pin thread to CPUs
 					assert(0 == pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset));
+
+					// Don't handle alarm signal when it goes off
+					sigset_t set;
+					sigemptyset(&set);
+					sigaddset(&set, SIGALRM);
+					assert(0 == pthread_sigmask(SIG_BLOCK, &set, NULL));
 				}
 
 #ifdef DEBUG
@@ -300,12 +305,12 @@ main( int argc, char* const argv[] ) {
 		assert(0 == pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset));
 	}
 
+	// Wait for all threads to be ready!
+	while (numAtBarrior.load() != threads.size());
+
 	// Officially start test timer!
     if(!Setup_timeout())
         error("ERROR: Alarm");
-
-	// Wait for all threads to be ready!
-	while (numAtBarrior.load() != threads.size());
 
 	// Let threads loose!
 	startExperiment.store(true);
