@@ -311,7 +311,6 @@ LoopResult migratingLoop(const element_size_t startIndex, const unsigned int sub
         accesscount += 1;
 
 		if (accesscount % steps == 0) {
-			std::cout << "Fibre migrating to cluster " << (accesscount / steps) % subpaths << " after " << accesscount << " accesses" << std::endl;
 			// We make the assumption that the number of elements in the walk is divisible by the number of subpaths
 			// We enforece it
 			fibre_migrate(&clusters[(accesscount / steps) % subpaths]);
@@ -434,19 +433,29 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 		}
 	}
 
-	// Spawn specified fibre on each cluster
-	fibre_t **fibres = new fibre_t*[numSubpaths];
-	size_t numTotalFibres = 0;
+	// Figure out how many fibres we'll be spawning
+	size_t numTotalFibres = std::accumulate(subpathFibreCounts.begin(),
+											subpathFibreCounts.end(),
+											(size_t)0);
+	fibre_t *fibres = new fibre_t[numTotalFibres];
+
+	// Synchronize logging
 	fibre_mutex_t loggingMutex;
 	fibre_mutexattr_t loggingMutexAttr;
 	assert(0 == fibre_mutex_init(&loggingMutex, &loggingMutexAttr));
+
+	// Create barrior for fibres to wait on before test starts
+	fibre_barrier_t testBarrier;
+	assert(0 == fibre_barrier_init(&testBarrier, NULL,
+								   numTotalFibres + 1 /* for main fibre to release the others */));
+
+	// Create the fibres
+	size_t curFibreIdx = 0;
 	for (size_t i = 0; i < numSubpaths; i++) {
 		const size_t numSubpathFibres = subpathFibreCounts[i];
-		fibre_t *subpathFibres = nullptr;
 		if (0 == numSubpathFibres) {
 			continue;
 		}
-		subpathFibres = new fibre_t[numSubpathFibres];
 
 		fibre_attr_t attr;
 		attr.init();
@@ -457,15 +466,17 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 				size_t subpathIdx, fibreIdx;
 				size_t startIdx;
 				fibre_mutex_t *loggingMutex;
+				fibre_barrier_t *testBarrier;
 			};
 			CallbackPack *pack = new CallbackPack{
 				.res=loopResults[i][j],
 				.subpathIdx=i,
 				.fibreIdx=j,
 				.startIdx=subpathStartIndices[i],
-				.loggingMutex=&loggingMutex
+				.loggingMutex=&loggingMutex,
+				.testBarrier=&testBarrier
 			};
-			assert(0 == fibre_create(&subpathFibres[j], &attr,
+			assert(0 == fibre_create(&fibres[curFibreIdx], &attr,
 				[](void *p) -> void * {
 					CallbackPack& pack = *(CallbackPack *)p;
 
@@ -481,7 +492,7 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 
 					// Have all fibres wait at barrior until main thread starts test
 					numAtBarrior.fetch_add(1);
-					while (!startExperiment.load());
+					assert(0 == fibre_barrier_wait(pack.testBarrier));
 
 					if (migrate) {
 						pack.res = migratingLoop(pack.startIdx, distr->getEntries() / numSubpaths);
@@ -492,10 +503,8 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 					delete (CallbackPack *)p;
 					return NULL;
 				}, (void *)pack));
+			curFibreIdx++;
 		}
-
-		numTotalFibres += numSubpathFibres;
-		fibres[i] = subpathFibres;
 	}
 
 	// Wait for all threads to be ready!
@@ -505,23 +514,18 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 	setupTimeout();
 
 	// Let threads loose!
-	startExperiment.store(true);
+	assert(PTHREAD_BARRIER_SERIAL_THREAD == fibre_barrier_wait(&testBarrier));
 
 	// Wait until eveything is finished
-	for (size_t i = 0; i < numSubpaths; i++) {
-		for (size_t j = 0; j < subpathFibreCounts[i]; j++) {
-			assert(0 == fibre_join(*(fibres[i] + j), NULL /*non-null retval not implemented*/));
-		}
+	for (size_t i = 0; i < numTotalFibres; i++) {
+		assert(0 == fibre_join(fibres[i], NULL /*non-null retval not implemented*/));
 	}
 
 	// Cleanup
+	assert(0 == fibre_barrier_destroy(&testBarrier));
 	assert(0 == fibre_mutex_destroy(&loggingMutex));
+	assert(0 == fibre_mutexattr_destroy(&loggingMutexAttr));
 
-	for (size_t i = 0; i < numSubpaths; i++) {
-		if (nullptr != fibres[i]) {
-			delete[] fibres[i];
-		}
-	}
 	delete[] fibres;
 	//delete[] clusters;
 
