@@ -6,7 +6,7 @@ bool        Setup_buffer( void );
 bool        Setup_perf( void );
 bool        Setup_distribution( void );
 bool        Synchronize_instances( void );
-bool        Setup_timeout( void );
+void        setupTimeout( void );
 bool        Perform_experiment( void );
 bool        Dump_results( void );
 
