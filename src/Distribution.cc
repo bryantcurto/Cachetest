@@ -100,7 +100,7 @@ void LinearDistribution::doDistribute() {
 }
 
 void UniformDistribution::doDistribute() {
-	// FIX: Pretty sure bufferlines doesn't account for start offset!
+    // FIX: Pretty sure bufferlines doesn't account for start offset!
     int bufferlines = buffer->Get_size()/ cacheline;
     int num_line_elements = cacheline / element_size;
     int offset;
@@ -115,54 +115,54 @@ void UniformDistribution::doDistribute() {
 
     /* New algorithm:
 	 * Init the access array, such that we randomly sample a new place to go to,
-	 * but each entry has `cacheline / sizeof(int)` entries. This is sort of 
+	 * but each entry has `cacheline / sizeof(int)` entries. This is sort of
 	 * analogous to buckets in hashing. When the front entry is full, find 
 	 * one empty one in the next 15 entries. If all of them are full, 
 	 * remember that this occured and draw a new number element.
 	 * Then the actual memory traversal should simply follow the pointers again
 	 * and all is swell
 	 */
-	// For as many elements can fit in the buffer:
-	// 1) Imagine that buffer is split into sequential cache lines
-	// 2) Pick a random cache line
-	// 3) Find the first empty entry (i.e., contains zero) within cache line
-	//   a) if empty entry found, use this entry as next in the sequence
-	//   b) otherwise, end pointer chasing loop
+    // For as many elements can fit in the buffer:
+    // 1) Imagine that buffer is split into sequential cache lines
+    // 2) Pick a random cache line
+    // 3) Find the first empty entry (i.e., contains zero) within cache line
+    //   a) if empty entry found, use this entry as next in the sequence
+    //   b) otherwise, end pointer chasing loop
 
-	// Make sure to account for first element with index
-	// `buffer->Get_start_address() - buffer->Get_buffer_pointer()`
-	entries = 1;
-    for (int i = 1; i < num_elements; i++) {
-		// Temporarily mark previdx location as taken in the instance that
-		// same element is selected twice in row
-		*(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = 1;
+    // Make sure to account for first element with index
+    // `buffer->Get_start_address() - buffer->Get_buffer_pointer()`
+    entries = 1;
+    for ( int i = 1; i < num_elements; i += 1 ) {
+        // Temporarily mark previdx location as taken in the instance that
+        // same element is selected twice in row. This is guaranteed to be overwritten.
+        *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = 1;
 
         int idx = mr.randInt() % bufferlines;
         offset = 0;
         while (true) {
-            element = (idx * cacheline) + (offset * element_size) + (buffer->Get_start_address() - buffer->Get_buffer_pointer());
+            element = idx * cacheline + offset * element_size + (buffer->Get_start_address() - buffer->Get_buffer_pointer());
             if(0 != *(element_size_t*)(buffer->Get_buffer_pointer() + element)) {
                 offset += 1;
             } else {
                 break;
             }
             if(offset == num_line_elements - 1) {
-				done=true;
-				break;
-			}
+                done=true;
+                break;
+            }
         }
         if(done) {
-			break;
-		} else {
-        	this->sequence.push_back(idx);
-        	*(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = element;
-        	previdx = element;
-        	entries += 1;
-		}
+            break;
+        } else {
+            this->sequence.push_back(idx);
+            *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = element;
+            previdx = element;
+            entries += 1;
+        }
     }
 
-	// Connect start to end
-    *(int*)(buffer->Get_buffer_pointer() + previdx) = buffer->Get_start_address() - buffer->Get_buffer_pointer();
+    // Connect start to end
+    *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = buffer->Get_start_address() - buffer->Get_buffer_pointer();
 }
 
 //Mainly duplicate from above.
@@ -186,7 +186,15 @@ void UniformDistribution::doHugeDistribution() {
     previdx = buffer->Get_start_address() - buffer->Get_buffer_pointer();
 
     assert((buffer->Get_slabs()).size() > 0);    //Ensure that the slabs have been setup
-    for ( int i = 0; i < num_elements; i += 1 ) {
+
+    // Make sure to account for first element with index
+    // `buffer->Get_start_address() - buffer->Get_buffer_pointer()`
+    entries = 1;
+    for ( int i = 1; i < num_elements; i += 1 ) {
+        // Temporarily mark previdx location as taken in the instance that
+        // same element is selected twice in row. This is guaranteed to be overwritten.
+        *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = 1;
+
         int idx = mr.randInt() % bufferlines;
         this->sequence.push_back(idx);
         unsigned int page = idx / num_lines_on_page; //Find the logical page idx mod (2 MB/64 b)
@@ -197,19 +205,25 @@ void UniformDistribution::doHugeDistribution() {
         offset = 0;
         while (true) {
             element = (virtPageStart-virtBufferStart) + pageIDX*cacheline + offset*element_size;
-            if(*(element_size_t*)(buffer->Get_buffer_pointer() + element)) {
+            if(0 != *(element_size_t*)(buffer->Get_buffer_pointer() + element)) {
                 offset += 1;
             }else{
                 break;
             }
-            if(offset == num_line_elements - 1) { done=true; break; }
+            if(offset == num_line_elements - 1) {
+                done=true;
+                break;
+            }
         }
-        if(done) break;
-        *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = element;
-        previdx = element;
-        entries += 1;
+        if(done) {
+            break;
+        } else {
+            *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = element;
+            previdx = element;
+            entries += 1;
+        }
     }
-    *(int*)(buffer->Get_buffer_pointer() + previdx) = (buffer->Get_start_address()-buffer->Get_buffer_pointer());
+    *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = (buffer->Get_start_address()-buffer->Get_buffer_pointer());
 }
 
 /*
