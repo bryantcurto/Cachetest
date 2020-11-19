@@ -1,0 +1,3 @@
+[submodule "deps/libfibre"]
+	path = deps/libfibre
+	url = ist-git@git.uwaterloo.ca:mkarsten/libfibre.git

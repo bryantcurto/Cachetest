@@ -143,7 +143,7 @@ void UniformDistribution::doDistribute() {
             element = idx * cacheline + offset * element_size + (buffer->Get_start_address() - buffer->Get_buffer_pointer());
             if(0 != *(element_size_t*)(buffer->Get_buffer_pointer() + element)) {
                 offset += 1;
-            }else{
+            } else {
                 break;
             }
             if(offset == num_line_elements - 1) {
