@@ -134,7 +134,7 @@ void UniformDistribution::doDistribute() {
     entries = 1;
     for ( int i = 1; i < num_elements; i += 1 ) {
         // Temporarily mark previdx location as taken in the instance that
-        // same element is selected twice in row
+        // same element is selected twice in row. This is guaranteed to be overwritten.
         *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = 1;
 
         int idx = mr.randInt() % bufferlines;
@@ -186,7 +186,15 @@ void UniformDistribution::doHugeDistribution() {
     previdx = buffer->Get_start_address() - buffer->Get_buffer_pointer();
 
     assert((buffer->Get_slabs()).size() > 0);    //Ensure that the slabs have been setup
-    for ( int i = 0; i < num_elements; i += 1 ) {
+
+    // Make sure to account for first element with index
+    // `buffer->Get_start_address() - buffer->Get_buffer_pointer()`
+    entries = 1;
+    for ( int i = 1; i < num_elements; i += 1 ) {
+        // Temporarily mark previdx location as taken in the instance that
+        // same element is selected twice in row. This is guaranteed to be overwritten.
+        *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = 1;
+
         int idx = mr.randInt() % bufferlines;
         this->sequence.push_back(idx);
         unsigned int page = idx / num_lines_on_page; //Find the logical page idx mod (2 MB/64 b)
@@ -197,19 +205,25 @@ void UniformDistribution::doHugeDistribution() {
         offset = 0;
         while (true) {
             element = (virtPageStart-virtBufferStart) + pageIDX*cacheline + offset*element_size;
-            if(*(element_size_t*)(buffer->Get_buffer_pointer() + element)) {
+            if(0 != *(element_size_t*)(buffer->Get_buffer_pointer() + element)) {
                 offset += 1;
             }else{
                 break;
             }
-            if(offset == num_line_elements - 1) { done=true; break; }
+            if(offset == num_line_elements - 1) {
+                done=true;
+                break;
+            }
         }
-        if(done) break;
-        *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = element;
-        previdx = element;
-        entries += 1;
+        if(done) {
+            break;
+        } else {
+            *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = element;
+            previdx = element;
+            entries += 1;
+        }
     }
-    *(int*)(buffer->Get_buffer_pointer() + previdx) = (buffer->Get_start_address()-buffer->Get_buffer_pointer());
+    *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = (buffer->Get_start_address()-buffer->Get_buffer_pointer());
 }
 
 /*
