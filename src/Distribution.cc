@@ -133,6 +133,10 @@ void UniformDistribution::doDistribute() {
     // `buffer->Get_start_address() - buffer->Get_buffer_pointer()`
     entries = 1;
     for ( int i = 1; i < num_elements; i += 1 ) {
+        // Temporarily mark previdx location as taken in the instance that
+        // same element is selected twice in row
+        *(element_size_t*)(buffer->Get_buffer_pointer() + previdx) = 1;
+
         int idx = mr.randInt() % bufferlines;
         offset = 0;
         while (true) {
