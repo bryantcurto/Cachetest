@@ -28,7 +28,10 @@ Perf_Cachetest::addEvent(__u32 eventId, __u32 UnitMask) {
     int fd;
     memset(&attr,0x0,sizeof(attr));
     attr.type = PERF_TYPE_RAW;
+    attr.disabled = 1;
+    attr.inherit = 1;
     attr.exclude_kernel = 1;
+    attr.exclude_hv = 1;
     attr.config |= (1<<16);
 
 #if (defined __x86_64__ || defined __IA64__)
