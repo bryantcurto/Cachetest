@@ -70,8 +70,8 @@ std::vector<size_t> subpathThreadCounts;
 std::vector<std::vector<std::unordered_set<int> > > cpuIdSets;
 int mainThreadCPUId = -1;
 std::vector<element_size_t> subpathStartIndices;
-std::atomic<bool> startExperiment(false);
 std::atomic<size_t> numAtBarrior(0);
+volatile bool startExperiment = false;
 
 std::vector<size_t> subpathFibreCounts;
 bool migrate = false;
@@ -353,7 +353,7 @@ std::vector<std::vector<LoopResult> > threadTest() {
 
 				// Have all threads wait at barrior until main thread starts test
 				numAtBarrior.fetch_add(1);
-				while (!startExperiment.load());
+				while (!startExperiment);
 
 				res = loop(startIdx);
 			}, std::ref(loopResults[i][j]), i, j, subpathStartIndices[i]);
@@ -375,7 +375,7 @@ std::vector<std::vector<LoopResult> > threadTest() {
 	setupTimeout();
 
 	// Let threads loose!
-	startExperiment.store(true);
+	startExperiment = true;
 
 	// Wait for timer to go off and threads to finish
 	for (std::thread& t : threads) {
@@ -557,7 +557,6 @@ main( int argc, char* const argv[] ) {
 
 	// Some sanity checks
 	assert(0 == distr->getEntries() % numSubpaths);
-	assert(startExperiment.is_lock_free());
 	assert(numAtBarrior.is_lock_free());
 
 	// Pin main thread to specified core
