@@ -16,7 +16,7 @@ class Perf_Cachetest : public Perf
         ~Perf_Cachetest();
 
         bool 							addEvent(__u64 rawCode);
-        bool 							addEvent(__u32 eventId, __u32 UnitMask);
+        bool 							addEvent(__u32 eventId, __u32 UnitMask, const std::string& stringEvent="");
         bool 							addEvent(Event event);
         bool 							addEvents(std::vector<Event> &events);
         bool 							start();       //Start counting

@@ -3,6 +3,10 @@
 
 #include <Perf_Cachetest.hpp>
 
+const std::string CUSTOM_PREFIX = "CUSTOM";
+const std::string L1D_HIT_TEST_NAME = "l1d_hit";
+const std::string L1D_MISS_TEST_NAME = "l1d_miss";
+
 Perf_Cachetest::Perf_Cachetest() {
     fd_leader = -1;
 }
@@ -22,27 +26,54 @@ Perf_Cachetest::~Perf_Cachetest() {
 //    attr.config = rawCode;
 //}
 
+
+
 bool 
-Perf_Cachetest::addEvent(__u32 eventId, __u32 UnitMask) {
+Perf_Cachetest::addEvent(__u32 eventId, __u32 UnitMask, const std::string& stringEvent) {
     struct perf_event_attr attr;
     int fd;
     memset(&attr,0x0,sizeof(attr));
-    attr.type = PERF_TYPE_RAW;
+
     attr.disabled = 1;
     attr.inherit = 1;
+    attr.inherit_stat = 1;
     attr.exclude_kernel = 1;
     attr.exclude_hv = 1;
-    attr.config |= (1<<16);
+
+    if ((__u32)-1 == eventId && (__u32)-1 == UnitMask &&
+        stringEvent.substr(0, CUSTOM_PREFIX.size()) == CUSTOM_PREFIX)
+    {
+        const std::string testName = stringEvent.substr(CUSTOM_PREFIX.size());
+        if (testName == L1D_HIT_TEST_NAME) {
+            std::cout << "Submitting event: L1D_HIT_TEST_NAME" << std::endl;
+            attr.type = PERF_TYPE_HW_CACHE;
+            attr.config = (PERF_COUNT_HW_CACHE_L1D) |
+                          (PERF_COUNT_HW_CACHE_OP_READ << 8) |
+                          (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16);
+        } else if (testName == L1D_MISS_TEST_NAME) {
+            std::cout << "Submitting event: L1D_MISS_TEST_NAME" << std::endl;
+            attr.type = PERF_TYPE_HW_CACHE;
+            attr.config = (PERF_COUNT_HW_CACHE_L1D) |
+                          (PERF_COUNT_HW_CACHE_OP_READ << 8) |
+                          (PERF_COUNT_HW_CACHE_RESULT_MISS << 16);
+        } else {
+            std::cerr << "You messed up" << std::endl;
+            exit(-1);
+        }
+    } else {
+        attr.type = PERF_TYPE_RAW;
+        attr.config |= (1<<16);
 
 #if (defined __x86_64__ || defined __IA64__)
-    attr.config |= ((uint64_t)eventId << 24ULL) & 0xF00000000ULL;
-    attr.config |= (eventId & 0xFF);
-    attr.config |= (UnitMask << 8) & 0xFF00;
+        attr.config |= ((uint64_t)eventId << 24ULL) & 0xF00000000ULL;
+        attr.config |= (eventId & 0xFF);
+        attr.config |= (UnitMask << 8) & 0xFF00;
 #elif __powerpc__
-    attr.config |= eventId;
+        attr.config |= eventId;
 #else
-    #error : Arch not supported by Perf implementation
+        #error : Arch not supported by Perf implementation
 #endif
+    }
 
     if((fd = perf_event_open(&attr,0,-1,fd_leader,0)) < 0) {
         perror("Opening perf");
@@ -59,7 +90,7 @@ Perf_Cachetest::addEvent(__u32 eventId, __u32 UnitMask) {
 
 bool 
 Perf_Cachetest::addEvent(Event event) {
-    return addEvent(event.eventid, event.unitmask);
+    return addEvent(event.eventid, event.unitmask, event.string_event);
 }
 
 bool 
@@ -165,8 +196,24 @@ Perf_Cachetest::parseEvents(char *string) {
             std::cout << std::hex << event.eventid << std::endl;
             std::cout << std::hex << event.unitmask << std::endl;
 #endif
-        } 
-        else {      //Method 2
+        } else if (*idx == ':') {
+            Event event;
+            event.eventid = event.unitmask = (__u32)-1;
+
+            std::string testName(idx+1);
+            if (L1D_HIT_TEST_NAME == testName) {
+                printf("Adding L1 hit cache test\n");
+                event.string_event = CUSTOM_PREFIX + L1D_HIT_TEST_NAME;
+                events->push_back(event);
+            } else if (L1D_MISS_TEST_NAME == testName) {
+                printf("Adding L1 miss cache test\n");
+                event.string_event = CUSTOM_PREFIX + L1D_MISS_TEST_NAME;
+                events->push_back(event);
+            } else {
+                std::cerr << testName << " not recognized" << std::endl;
+                exit(1);
+            }
+        } else {      //Method 2
             Event event;
             std::string str(idx);
             if(!from_string<unsigned int>(event.eventid,str,std::hex)){
