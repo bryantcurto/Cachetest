@@ -49,7 +49,7 @@ void * WRITEBACK_VAR;
 #define START_CODE 4711u
 #define EXIT_CODE 4710u
 
-#define OPT_ARG_STRING "T:F:M:C:Im:shab:d:f:l:r:c:e:o:Aw"
+#define OPT_ARG_STRING "T:F:MC:Im:shab:d:f:l:r:c:e:o:Aw"
 
 //Global Variables
 unsigned int*       barrier             = NULL;
@@ -127,7 +127,6 @@ std::vector<element_size_t> splitPointerChasingPath(const element_size_t numPath
 
 		std::cout << std::endl << "  length=" << length << " vs " << distr->getEntries() << std::endl;
 	};
-
 #ifdef DEBUG
 	// Log input pointer chaising path
 	std::cout << "Input ";
@@ -269,14 +268,14 @@ LoopResult loop(const element_size_t startIndex) {
 /*
  * Perform that pointer chasing by a single thread/fibre
  */
-LoopResult migratingLoop(const element_size_t startIndex, const unsigned int subpathLength) {
+LoopResult migratingLoop(const element_size_t startIndex, const unsigned int subpathIdx, const unsigned int subpathLength) {
     register unsigned long long accesscount = 0;
     register unsigned int stop = START_CODE;
     unsigned int dummy=0;
 
     register element_size_t index = startIndex;
     unsigned char* startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
-	register unsigned int subpaths = numSubpaths;
+	register unsigned int clusterIdx = subpathIdx;
 	register unsigned int steps = subpathLength;
 
     asm ("#//Loop Starts here");
@@ -307,7 +306,9 @@ LoopResult migratingLoop(const element_size_t startIndex, const unsigned int sub
 		if (accesscount % steps == 0) {
 			// We make the assumption that the number of elements in the walk is divisible by the number of subpaths
 			// We enforece it
-			fibre_migrate(&clusters[(accesscount / steps) % subpaths]);
+			clusterIdx = (clusterIdx + 1) % numSubpaths;
+			fibre_migrate(&clusters[clusterIdx]);
+			//printf("Fibre start=%u migrate to cluster %llu, index %llu\n", startIndex, clusterIdx, index);
 		}
         asm("#Exit");
     }
@@ -402,8 +403,18 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 	// Calling function with subpath of 1 doesn't change path.
 	if (migrate) {
 		subpathStartIndices = splitPointerChasingPath(1);
+
+		assert(0 == distr->getEntries() % numSubpaths);
+		size_t subpathLength = distr->getEntries() / numSubpaths;
+		//printf(">> Subpath length %zu\n", subpathLength);
 		for (size_t i = 1; i < numSubpaths; i++) {
-			subpathStartIndices.emplace_back(subpathStartIndices[0]);
+			// Compute starting location of next subpath by walking through path
+			element_size_t start = subpathStartIndices.back();
+			for (size_t j = 0; j < subpathLength; j++) {
+				//printf(">> Skipping over %llu\n", start);
+				start = *(element_size_t*)(buffer->Get_buffer_pointer() + start);
+			}
+			subpathStartIndices.emplace_back(start);
 		}
 	} else {
 		subpathStartIndices = splitPointerChasingPath(numSubpaths);
@@ -453,7 +464,8 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 	assert(0 == fibre_barrier_init(&testBarrier, NULL,
 								   numTotalFibres + 1 /* for main fibre to release the others */));
 
-	// Create the fibres
+	// For each subpath, get the associated cluster and spawn
+	// the associated fibers for the cluster
 	size_t curFibreIdx = 0;
 	for (size_t i = 0; i < numSubpaths; i++) {
 		const size_t numSubpathFibres = subpathFibreCounts[i];
@@ -464,6 +476,8 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 		fibre_attr_t attr;
 		attr.init();
 		attr.cluster = &clusters[i];
+
+		// Spawn each fiber for this cluster
 		for (size_t j = 0; j < numSubpathFibres; j++) {
 			struct CallbackPack {
 				LoopResult& res;
@@ -480,6 +494,8 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 				.loggingMutex=&loggingMutex,
 				.testBarrier=&testBarrier
 			};
+
+			// Spawn the fiber and have it execute lambda
 			assert(0 == fibre_create(&fibres[curFibreIdx], &attr,
 				[](void *p) -> void * {
 					CallbackPack& pack = *(CallbackPack *)p;
@@ -499,7 +515,7 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 					assert(0 == fibre_barrier_wait(pack.testBarrier));
 
 					if (migrate) {
-						pack.res = migratingLoop(pack.startIdx, distr->getEntries() / numSubpaths);
+						pack.res = migratingLoop(pack.startIdx, pack.subpathIdx, distr->getEntries() / numSubpaths);
 					} else {
 						pack.res = loop(pack.startIdx);
 					}
@@ -661,8 +677,8 @@ static void usage( const char* program ) {
     std::cerr << "usage: " << program << " [options] <dataset in KB> [output file] [error output file]" << std::endl;
     std::cerr << "options:" << std::endl;
 	std::cerr << "-T CSV of threads per subpath (default: 1 thread on 1 subpath)" << std::endl;
-	std::cerr << "-F CSV of fibres per subpath (disabled by default; don't use with -M)" << std::endl;
-	std::cerr << "-M number of fibres with which to perform migration test (disabled by default; don't use with -F)" << std::endl;
+	std::cerr << "-F CSV of fibres per subpath (disabled by default)" << std::endl;
+	std::cerr << "-M flag indicating to perform thread migration across subpaths (disabled by default; specify with -F)" << std::endl;
 	std::cerr << "-C CSV *or* range (M-N) of CPU ids to which all threads are pinned" << std::endl;
 	std::cerr << "   Secify CPUs per subpath threads by specifying CSVs/ranges separated by a period (\".\") (default: no pinning)" << std::endl;
 	std::cerr << "-I Enable individual pinning i.e., pin 1 thread pinned to 1 CPU (default: group pinning)" << std::endl;
@@ -691,7 +707,6 @@ Parse_options( int argc, char * const *argv, Options &opt)
 	std::string threadsInput = "";
 	std::string cpuIdsInput = "";
 	std::string fibresInput = "";
-	std::string migrateInput = "";
 	bool groupPinning = true;
     for (;;) {
         int option = getopt( argc, argv, OPT_ARG_STRING );
@@ -699,7 +714,7 @@ Parse_options( int argc, char * const *argv, Options &opt)
         switch(option) {
 			case 'T': threadsInput = optarg; break;
 			case 'F': fibresInput = optarg; break;
-			case 'M': migrateInput = optarg; break;
+			case 'M': migrate = true; break;
 			case 'C': cpuIdsInput = optarg; break;
 			case 'I': groupPinning = false; break;
 			case 'm': mainThreadCPUId = atoi(optarg); break;
@@ -755,22 +770,12 @@ Parse_options( int argc, char * const *argv, Options &opt)
 	}
 	numSubpaths = subpathThreadCounts.size();
 
-	// Either use fibres on subpaths, or perform migration, or do neither
-	// and use os threads.
-	assert(!(fibresInput.size() > 0 && migrateInput.size() > 0));
-
 	// Get the number of fibres per subpath (this must agree with above
 	if (fibresInput.size() > 0) {
 		auto tmp = split(fibresInput, ",");
 		std::transform(tmp.begin(), tmp.end(), std::back_inserter(subpathFibreCounts),
 					  [](const std::string& s) { return (size_t)std::stoull(s); });
 		assert(subpathFibreCounts.size() == numSubpaths);
-	} else if (migrateInput.size() > 0) {
-		migrate = true;
-		subpathFibreCounts.emplace_back((size_t)std::stoull(migrateInput));
-		for (size_t i = 1; i < numSubpaths; i++) {
-			subpathFibreCounts.emplace_back(0);
-		}
 	}
 
 	// Parse input string to determine which CPUs to pin to which threads
