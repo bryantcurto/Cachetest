@@ -221,7 +221,7 @@ void blockAlarmSignal() {
  * for a single thread/fibre
  */
 struct LoopResult {
-	long long accesscount;
+	unsigned long long accesscount;
 	unsigned int index;
 };
 
@@ -229,15 +229,12 @@ struct LoopResult {
  * Perform that pointer chasing by a single thread/fibre
  */
 LoopResult loop(const element_size_t startIndex) {
-    register long long accesscount = 0;
+    register unsigned long long accesscount = 0;
     register unsigned int stop = START_CODE;
     unsigned int dummy=0;
 
     register element_size_t index = startIndex;
     unsigned char* startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
-
-    if(Measured_events != NULL && !perf->start())
-        error("ERROR: Can't start counters");
 
     asm ("#//Loop Starts here");
     for (;;) {
@@ -273,7 +270,7 @@ LoopResult loop(const element_size_t startIndex) {
  * Perform that pointer chasing by a single thread/fibre
  */
 LoopResult migratingLoop(const element_size_t startIndex, const unsigned int subpathLength) {
-    register long long accesscount = 0;
+    register unsigned long long accesscount = 0;
     register unsigned int stop = START_CODE;
     unsigned int dummy=0;
 
@@ -281,9 +278,6 @@ LoopResult migratingLoop(const element_size_t startIndex, const unsigned int sub
     unsigned char* startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
 	register unsigned int subpaths = numSubpaths;
 	register unsigned int steps = subpathLength;
-
-    if(Measured_events != NULL && !perf->start())
-        error("ERROR: Can't start counters");
 
     asm ("#//Loop Starts here");
     for (;;) {
@@ -374,12 +368,22 @@ std::vector<std::vector<LoopResult> > threadTest() {
 	// Officially start test timer!
 	setupTimeout();
 
+	// Have perf start recording events
+	if (Measured_events != NULL && !perf->start()) {
+		error("ERROR: Can't start counters");
+	}
+
 	// Let threads loose!
 	startExperiment = true;
 
 	// Wait for timer to go off and threads to finish
 	for (std::thread& t : threads) {
 		t.join();
+	}
+
+	// Have perf stop recording events
+	if (Measured_events != NULL != 0 && !perf->stop()) {
+		error("ERROR: Stopping Counters failed");
 	}
 
 	return loopResults;
@@ -513,12 +517,22 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 	// Officially start test timer!
 	setupTimeout();
 
+	// Have perf start recording events
+	if (Measured_events != NULL && !perf->start()) {
+		error("ERROR: Can't start counters");
+	}
+
 	// Let threads loose!
 	assert(PTHREAD_BARRIER_SERIAL_THREAD == fibre_barrier_wait(&testBarrier));
 
 	// Wait until eveything is finished
 	for (size_t i = 0; i < numTotalFibres; i++) {
 		assert(0 == fibre_join(fibres[i], NULL /*non-null retval not implemented*/));
+	}
+
+	// Have perf stop recording events
+	if (Measured_events != NULL != 0 && !perf->stop()) {
+		error("ERROR: Stopping Counters failed");
 	}
 
 	// Cleanup
@@ -576,8 +590,6 @@ main( int argc, char* const argv[] ) {
 
     //Get the Perf data
 	std::vector<Result_t> results;
-    if( Measured_events != NULL != 0 && !perf->stop() )
-		error("ERROR: Stopping Counters failed");
 	if( !perf->read_results(results) )
         error("ERROR: Reading results");
 
@@ -605,18 +617,18 @@ main( int argc, char* const argv[] ) {
 
 	// Log per-subpath access counts
 	*output << "Per-subpath results" << std::endl;
-	std::vector<size_t> subpathAccessCounts;
+	std::vector<uint64_t> subpathAccessCounts;
 	for (size_t i = 0; i < loopResults.size(); i++) {
 		subpathAccessCounts.emplace_back(
 				std::accumulate(loopResults[i].begin(), loopResults[i].end(), 0,
-								[](size_t count, LoopResult res) { return count + res.accesscount; }));
+								[](uint64_t count, LoopResult res) { return count + res.accesscount; }));
 		*output << "subpath " << i << " access count=" << subpathAccessCounts.back() << std::endl;
 	}
 	*output << std::endl;
 
 	// Log total access count
 	*output << "total access count="
-			<< std::accumulate(subpathAccessCounts.begin(), subpathAccessCounts.end(), 0)
+			<< std::accumulate(subpathAccessCounts.begin(), subpathAccessCounts.end(), (uint64_t)0)
 			<< std::endl << std::endl;
 
     *output << "Perf" << std::endl
