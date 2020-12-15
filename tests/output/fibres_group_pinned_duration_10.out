@@ -1,0 +1,87 @@
+Specified CPU Pins:
+> Subpath:
+>> Thread CPU Ids: 3 2 1 0 
+>> Thread CPU Ids: 3 2 1 0 
+>> Thread CPU Ids: 3 2 1 0 
+>> Thread CPU Ids: 3 2 1 0 
+> Subpath:
+>> Thread CPU Ids: 7 6 5 4 
+>> Thread CPU Ids: 7 6 5 4 
+>> Thread CPU Ids: 7 6 5 4 
+>> Thread CPU Ids: 7 6 5 4 
+Subpath Fibre Counts (migrate=N):
+> 4 fibres
+> 4 fibres
+Uniform distribution used
+Thread 139836528551680 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 139836479526656 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 139836479616768 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 139836479706880 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 139836479436544 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+Thread 139836479166208 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+Thread 139836479256320 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+Thread 139836479346432 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+Fibre 0x55e6842c14f0 idx=0 on cluster 0 starting index 0
+Fibre 0x55e6842c2b50 idx=2 on cluster 0 starting index 0
+Fibre 0x55e6842c2a70 idx=1 on cluster 0 starting index 0
+Fibre 0x55e6842c2c30 idx=3 on cluster 0 starting index 0
+Fibre 0x55e6842c2fb0 idx=3 on cluster 1 starting index 30164
+Fibre 0x55e6842c2ed0 idx=2 on cluster 1 starting index 30164
+Fibre 0x55e6842c2d10 idx=0 on cluster 1 starting index 30164
+Fibre 0x55e6842c2df0 idx=1 on cluster 1 starting index 30164
+dataset=49
+duration=10
+cacheline=64
+buffer factor=1
+loop factor=1
+entries/elems=4426/12544
+buffer util=0.353
+
+Per-thread results
+Subpath 0/Thread 0 access count=4228219765
+Subpath 0/Thread 1 access count=4224238578
+Subpath 0/Thread 2 access count=4223464028
+Subpath 0/Thread 3 access count=4224231939
+Subpath 1/Thread 0 access count=4216922400
+Subpath 1/Thread 1 access count=4215417560
+Subpath 1/Thread 2 access count=4215875651
+Subpath 1/Thread 3 access count=4213104975
+
+Per-subpath results
+subpath 0 access count=18446744073429836742
+subpath 1 access count=18446744073391003018
+
+total access count=18446744073111288144
+
+Perf
+  dataset=49
+  results=
+LoadManager 0x55E6842ABC10 9 1:9
+Staging 0x55E6842ABCD0 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x55E6842AF190 E: 1 U: 0 0/0 D: 1 C: 0 H: 9 S: 0 B: 1 T: 0 I: 9 W: 9
+LoadManager 0x55E6842B26B8 17 1:5 2:5 3:4 4:3
+Staging 0x55E6842B2778 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+LoadManager 0x55E6842B28F0 20 1:4 2:5 3:8 4:3
+Staging 0x55E6842B29B0 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x55E6842C1380 E: 1 U: 0 0/0 D: 1 C: 0 H: 4 S: 0 B: 1 T: 0 I: 5 W: 4
+Processor 0x55E6842C16D0 E: 0 U: 0 0/0 D: 0 C: 0 H: 2 S: 0 B: 0 T: 0 I: 3 W: 2
+Processor 0x55E6842C1980 E: 0 U: 0 0/0 D: 0 C: 0 H: 4 S: 0 B: 0 T: 0 I: 5 W: 4
+Processor 0x55E6842C1C30 E: 0 U: 0 0/0 D: 0 C: 0 H: 3 S: 0 B: 0 T: 0 I: 4 W: 3
+Processor 0x55E6842C1EE0 E: 1 U: 0 0/0 D: 1 C: 0 H: 5 S: 0 B: 1 T: 0 I: 6 W: 5
+Processor 0x55E6842C2190 E: 0 U: 0 0/0 D: 0 C: 0 H: 3 S: 0 B: 0 T: 0 I: 4 W: 3
+Processor 0x55E6842C2440 E: 0 U: 0 0/0 D: 0 C: 0 H: 2 S: 0 B: 0 T: 0 I: 3 W: 2
+Processor 0x55E6842C26F0 E: 0 U: 0 0/0 D: 0 C: 0 H: 6 S: 0 B: 0 T: 0 I: 7 W: 6
+Processor (total) 0x0 E: 6 U: 0 0/0 D: 3 C: 0 H: 38 S: 0 B: 3 T: 0 I: 46 W: 38
+LoadManager (total) 0x0 46
+
+ Performance counter stats for '../src/cachetest -T 4,4 -C 0-3.4-7 -F 4,4 -r 2 -d 10 49':
+
+    33,810,049,347      L1-dcache-loads                                             
+    11,045,535,867      L1-dcache-load-misses     #   32.67% of all L1-dcache hits  
+
+      10.025772301 seconds time elapsed
+
+      79.994397000 seconds user
+       0.015997000 seconds sys
+
+

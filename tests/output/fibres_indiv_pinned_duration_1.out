@@ -1,0 +1,87 @@
+Specified CPU Pins:
+> Subpath:
+>> Thread CPU Ids: 0 
+>> Thread CPU Ids: 1 
+>> Thread CPU Ids: 2 
+>> Thread CPU Ids: 3 
+> Subpath:
+>> Thread CPU Ids: 4 
+>> Thread CPU Ids: 5 
+>> Thread CPU Ids: 6 
+>> Thread CPU Ids: 7 
+Subpath Fibre Counts (migrate=N):
+> 4 fibres
+> 4 fibres
+Uniform distribution used
+Thread 140371423721216 (pinned to CPUs: 0,) looping over subpath 0
+Thread 140371374696192 (pinned to CPUs: 1,) looping over subpath 0
+Thread 140371374786304 (pinned to CPUs: 2,) looping over subpath 0
+Thread 140371374876416 (pinned to CPUs: 3,) looping over subpath 0
+Thread 140371374606080 (pinned to CPUs: 4,) looping over subpath 1
+Thread 140371374335744 (pinned to CPUs: 5,) looping over subpath 1
+Thread 140371374425856 (pinned to CPUs: 6,) looping over subpath 1
+Thread 140371374515968 (pinned to CPUs: 7,) looping over subpath 1
+Fibre 0x564b6a7cc6e0 idx=2 on cluster 0 starting index 0
+Fibre 0x564b6a7cc600 idx=1 on cluster 0 starting index 0
+Fibre 0x564b6a7cc7c0 idx=3 on cluster 0 starting index 0
+Fibre 0x564b6a7ccb40 idx=3 on cluster 1 starting index 30164
+Fibre 0x564b6a7cb080 idx=0 on cluster 0 starting index 0
+Fibre 0x564b6a7cca60 idx=2 on cluster 1 starting index 30164
+Fibre 0x564b6a7cc980 idx=1 on cluster 1 starting index 30164
+Fibre 0x564b6a7cc8a0 idx=0 on cluster 1 starting index 30164
+dataset=49
+duration=1
+cacheline=64
+buffer factor=1
+loop factor=1
+entries/elems=4426/12544
+buffer util=0.353
+
+Per-thread results
+Subpath 0/Thread 0 access count=421892960
+Subpath 0/Thread 1 access count=421680512
+Subpath 0/Thread 2 access count=422054509
+Subpath 0/Thread 3 access count=421569862
+Subpath 1/Thread 0 access count=420483279
+Subpath 1/Thread 1 access count=420810803
+Subpath 1/Thread 2 access count=420253127
+Subpath 1/Thread 3 access count=420430167
+
+Per-subpath results
+subpath 0 access count=1687197843
+subpath 1 access count=1681977376
+
+total access count=3369175219
+
+Perf
+  dataset=49
+  results=
+LoadManager 0x564B6A7B5730 12 1:12
+Staging 0x564B6A7B57F0 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x564B6A7B8D00 E: 1 U: 0 0/0 D: 1 C: 0 H: 12 S: 0 B: 1 T: 0 I: 12 W: 12
+LoadManager 0x564B6A7BC228 18 1:5 2:4 3:6 4:3
+Staging 0x564B6A7BC2E8 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+LoadManager 0x564B6A7BC460 18 1:4 2:6 3:5 4:3
+Staging 0x564B6A7BC520 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x564B6A7CAF10 E: 1 U: 0 0/0 D: 1 C: 0 H: 7 S: 0 B: 1 T: 0 I: 8 W: 7
+Processor 0x564B6A7CB260 E: 0 U: 0 0/0 D: 0 C: 0 H: 2 S: 0 B: 0 T: 0 I: 3 W: 2
+Processor 0x564B6A7CB510 E: 0 U: 0 0/0 D: 0 C: 0 H: 2 S: 0 B: 0 T: 0 I: 3 W: 2
+Processor 0x564B6A7CB7C0 E: 0 U: 0 0/0 D: 0 C: 0 H: 3 S: 0 B: 0 T: 0 I: 4 W: 3
+Processor 0x564B6A7CBA70 E: 1 U: 0 0/0 D: 1 C: 0 H: 5 S: 0 B: 1 T: 0 I: 6 W: 5
+Processor 0x564B6A7CBD20 E: 0 U: 0 0/0 D: 0 C: 0 H: 3 S: 0 B: 0 T: 0 I: 4 W: 3
+Processor 0x564B6A7CBFD0 E: 0 U: 0 0/0 D: 0 C: 0 H: 4 S: 0 B: 0 T: 0 I: 5 W: 4
+Processor 0x564B6A7CC280 E: 0 U: 0 0/0 D: 0 C: 0 H: 2 S: 0 B: 0 T: 0 I: 3 W: 2
+Processor (total) 0x0 E: 6 U: 0 0/0 D: 3 C: 0 H: 40 S: 0 B: 3 T: 0 I: 48 W: 40
+LoadManager (total) 0x0 48
+
+ Performance counter stats for '../src/cachetest -T 4,4 -C 0-3.4-7 -I -F 4,4 -r 2 -d 1 49':
+
+     3,403,145,145      L1-dcache-loads                                             
+     1,103,995,747      L1-dcache-load-misses     #   32.44% of all L1-dcache hits  
+
+       1.039576814 seconds time elapsed
+
+       8.028632000 seconds user
+       0.012000000 seconds sys
+
+

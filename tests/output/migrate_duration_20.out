@@ -1,0 +1,113 @@
+Uniform distribution used
+Fibre 0x557ad318ba50 idx=0 on cluster 0 starting index 0
+Fibre 0x557ad318d5d0 idx=7 on cluster 0 starting index 0
+Fibre 0x557ad318d6b0 idx=8 on cluster 0 starting index 0
+Fibre 0x557ad318d790 idx=9 on cluster 0 starting index 0
+Fibre 0x557ad318da30 idx=12 on cluster 0 starting index 0
+Fibre 0x557ad318dbf0 idx=14 on cluster 0 starting index 0
+Fibre 0x557ad318db10 idx=13 on cluster 0 starting index 0
+Fibre 0x557ad318ddb0 idx=0 on cluster 1 starting index 30164
+Fibre 0x557ad318d950 idx=11 on cluster 0 starting index 0
+Fibre 0x557ad318df70 idx=2 on cluster 1 starting index 30164
+Fibre 0x557ad318d870 idx=10 on cluster 0 starting index 0
+Fibre 0x557ad318e2f0 idx=6 on cluster 1 starting index 30164
+Fibre 0x557ad318e590 idx=9 on cluster 1 starting index 30164
+Fibre 0x557ad318e670 idx=10 on cluster 1 starting index 30164
+Fibre 0x557ad318e750 idx=11 on cluster 1 starting index 30164
+Fibre 0x557ad318e830 idx=12 on cluster 1 starting index 30164
+Fibre 0x557ad318de90 idx=1 on cluster 1 starting index 30164
+Fibre 0x557ad318d170 idx=2 on cluster 0 starting index 0
+Fibre 0x557ad318dcd0 idx=15 on cluster 0 starting index 0
+Fibre 0x557ad318d250 idx=3 on cluster 0 starting index 0
+Fibre 0x557ad318e050 idx=3 on cluster 1 starting index 30164
+Fibre 0x557ad318d410 idx=5 on cluster 0 starting index 0
+Fibre 0x557ad318e3d0 idx=7 on cluster 1 starting index 30164
+Fibre 0x557ad318e4b0 idx=8 on cluster 1 starting index 30164
+Fibre 0x557ad318e910 idx=13 on cluster 1 starting index 30164
+Fibre 0x557ad318d4f0 idx=6 on cluster 0 starting index 0
+Fibre 0x557ad318d090 idx=1 on cluster 0 starting index 0
+Fibre 0x557ad318e210 idx=5 on cluster 1 starting index 30164
+Fibre 0x557ad318e9f0 idx=14 on cluster 1 starting index 30164
+Fibre 0x557ad318ead0 idx=15 on cluster 1 starting index 30164
+Fibre 0x557ad318e130 idx=4 on cluster 1 starting index 30164
+Fibre 0x557ad318d330 idx=4 on cluster 0 starting index 0
+dataset=49
+duration=20
+cacheline=64
+buffer factor=1
+loop factor=1
+entries/elems=4426/12544
+buffer util=0.353
+
+Per-thread results
+Subpath 0/Thread 0 access count=515881283
+Subpath 0/Thread 1 access count=516027341
+Subpath 0/Thread 2 access count=515949886
+Subpath 0/Thread 3 access count=515956525
+Subpath 0/Thread 4 access count=515976442
+Subpath 0/Thread 5 access count=515967590
+Subpath 0/Thread 6 access count=515843662
+Subpath 0/Thread 7 access count=516002998
+Subpath 0/Thread 8 access count=515932182
+Subpath 0/Thread 9 access count=516002998
+Subpath 0/Thread 10 access count=515938821
+Subpath 0/Thread 11 access count=515994146
+Subpath 0/Thread 12 access count=515932182
+Subpath 0/Thread 13 access count=515994146
+Subpath 0/Thread 14 access count=515958738
+Subpath 0/Thread 15 access count=515947673
+Subpath 1/Thread 0 access count=516018489
+Subpath 1/Thread 1 access count=515965377
+Subpath 1/Thread 2 access count=515898987
+Subpath 1/Thread 3 access count=516009637
+Subpath 1/Thread 4 access count=515974229
+Subpath 1/Thread 5 access count=515952099
+Subpath 1/Thread 6 access count=515965377
+Subpath 1/Thread 7 access count=515960951
+Subpath 1/Thread 8 access count=515925543
+Subpath 1/Thread 9 access count=515983081
+Subpath 1/Thread 10 access count=515934395
+Subpath 1/Thread 11 access count=515958738
+Subpath 1/Thread 12 access count=515947673
+Subpath 1/Thread 13 access count=515952099
+Subpath 1/Thread 14 access count=515934395
+Subpath 1/Thread 15 access count=515934395
+
+Per-subpath results
+subpath 0 access count=18446744073374923637
+subpath 1 access count=18446744073374932489
+
+total access count=18446744073040304510
+
+Perf
+  dataset=49
+  results=
+LoadManager 0x557AD3176160 9 1:9
+Staging 0x557AD3176220 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x557AD31796E0 E: 1 U: 0 0/0 D: 1 C: 0 H: 9 S: 0 B: 1 T: 0 I: 9 W: 9
+LoadManager 0x557AD317CC08 283916 1:107025 2:9442 3:516 4:9
+Staging 0x557AD317CCC8 E: 3613415 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+LoadManager 0x557AD317CE40 40578 1:3660 2:129 3:19 4:6
+Staging 0x557AD317CF00 E: 3726600 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x557AD318B8E0 E: 6 U: 0 0/0 D: 6 C: 0 H: 28069 S: 904652 B: 1 T: 3 I: 26105 W: 26104
+Processor 0x557AD318BC30 E: 7 U: 0 0/0 D: 4 C: 0 H: 29872 S: 902704 B: 0 T: 0 I: 27716 W: 27715
+Processor 0x557AD318BEE0 E: 5 U: 0 0/0 D: 3 C: 0 H: 29052 S: 903268 B: 0 T: 0 I: 26907 W: 26906
+Processor 0x557AD318C190 E: 3 U: 0 0/0 D: 3 C: 0 H: 29995 S: 902790 B: 0 T: 2 I: 27426 W: 27425
+Processor 0x557AD318C440 E: 5 U: 0 0/0 D: 5 C: 0 H: 1232 S: 929957 B: 1 T: 0 I: 1134 W: 1133
+Processor 0x557AD318C6F0 E: 2 U: 0 0/0 D: 2 C: 0 H: 977 S: 929912 B: 0 T: 0 I: 858 W: 857
+Processor 0x557AD318C9A0 E: 3 U: 0 0/0 D: 3 C: 0 H: 313 S: 938391 B: 0 T: 0 I: 157 W: 156
+Processor 0x557AD318CC50 E: 3 U: 0 0/0 D: 3 C: 0 H: 1288 S: 928339 B: 0 T: 0 I: 1190 W: 1189
+Processor (total) 0x0 E: 7340051 U: 0 0/0 D: 30 C: 0 H: 120807 S: 7340013 B: 3 T: 5 I: 111502 W: 111494
+LoadManager (total) 0x0 324503
+
+ Performance counter stats for '../src/cachetest -T 4,4 -F 16,16 -M -r 2 -d 20 49':
+
+    18,173,308,037      L1-dcache-loads                                             
+     6,445,151,982      L1-dcache-load-misses     #   35.46% of all L1-dcache hits  
+
+      20.031509927 seconds time elapsed
+
+     159.195673000 seconds user
+       0.480324000 seconds sys
+
+

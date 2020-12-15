@@ -1,0 +1,67 @@
+Specified CPU Pins:
+> Subpath:
+>> Thread CPU Ids: 3 2 1 0 
+>> Thread CPU Ids: 3 2 1 0 
+>> Thread CPU Ids: 3 2 1 0 
+>> Thread CPU Ids: 3 2 1 0 
+> Subpath:
+>> Thread CPU Ids: 7 6 5 4 
+>> Thread CPU Ids: 7 6 5 4 
+>> Thread CPU Ids: 7 6 5 4 
+>> Thread CPU Ids: 7 6 5 4 
+Uniform distribution used
+Thread idx=1 on subpath 0 starting index 0
+Thread idx=0 on subpath 0 starting index 0
+Thread idx=1 on subpath 1 starting index 30164
+Thread idx=2 on subpath 0 starting index 0
+Thread idx=2 on subpath 1 starting index 30164
+Thread idx=0 on subpath 1 starting index 30164
+Thread idx=3 on subpath 1 starting index 30164
+Thread idx=3 on subpath 0 starting index 0
+Thread 140476721661696 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 140476713268992 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 140476704876288 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 140476696483584 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 140476688090880 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+Thread 140476679698176 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+Thread 140476671305472 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+Thread 140476662912768 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+dataset=49
+duration=2
+cacheline=64
+buffer factor=1
+loop factor=1
+entries/elems=4426/12544
+buffer util=0.353
+
+Per-thread results
+Subpath 0/Thread 0 access count=823105434
+Subpath 0/Thread 1 access count=824450938
+Subpath 0/Thread 2 access count=824636830
+Subpath 0/Thread 3 access count=823806955
+Subpath 1/Thread 0 access count=822244577
+Subpath 1/Thread 1 access count=821611659
+Subpath 1/Thread 2 access count=822330884
+Subpath 1/Thread 3 access count=822532267
+
+Per-subpath results
+subpath 0 access count=18446744072710584477
+subpath 1 access count=18446744072703303707
+
+total access count=18446744071704336568
+
+Perf
+  dataset=49
+  results=
+
+ Performance counter stats for '../src/cachetest -T 4,4 -C 0-3.4-7 -r 2 -d 2 49':
+
+     6,917,425,077      L1-dcache-loads                                             
+     2,155,877,342      L1-dcache-load-misses     #   31.17% of all L1-dcache hits  
+
+       2.038737926 seconds time elapsed
+
+      16.113301000 seconds user
+       0.007994000 seconds sys
+
+

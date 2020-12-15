@@ -1,0 +1,65 @@
+Uniform distribution used
+Fibre 0x55bf00931a10 idx=0 on cluster 0 starting index 0
+Fibre 0x55bf00933150 idx=3 on cluster 0 starting index 0
+Fibre 0x55bf009334d0 idx=3 on cluster 1 starting index 30164
+Fibre 0x55bf00933070 idx=2 on cluster 0 starting index 0
+Fibre 0x55bf00932f90 idx=1 on cluster 0 starting index 0
+Fibre 0x55bf00933230 idx=0 on cluster 1 starting index 30164
+Fibre 0x55bf00933310 idx=1 on cluster 1 starting index 30164
+Fibre 0x55bf009333f0 idx=2 on cluster 1 starting index 30164
+dataset=49
+duration=1
+cacheline=64
+buffer factor=1
+loop factor=1
+entries/elems=4426/12544
+buffer util=0.353
+
+Per-thread results
+Subpath 0/Thread 0 access count=396770984
+Subpath 0/Thread 1 access count=431357961
+Subpath 0/Thread 2 access count=431295997
+Subpath 0/Thread 3 access count=390767115
+Subpath 1/Thread 0 access count=430439566
+Subpath 1/Thread 1 access count=374426323
+Subpath 1/Thread 2 access count=382822445
+Subpath 1/Thread 3 access count=430100977
+
+Per-subpath results
+subpath 0 access count=1650192057
+subpath 1 access count=1617789311
+
+total access count=3267981368
+
+Perf
+  dataset=49
+  results=
+LoadManager 0x55BF0091C0C0 10 1:10
+Staging 0x55BF0091C180 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x55BF0091F690 E: 1 U: 0 0/0 D: 1 C: 0 H: 10 S: 0 B: 1 T: 0 I: 10 W: 10
+LoadManager 0x55BF00922BB8 18 1:5 2:4 3:6 4:3
+Staging 0x55BF00922C78 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+LoadManager 0x55BF00922DF0 19 1:4 2:5 3:6 4:4
+Staging 0x55BF00922EB0 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x55BF009318A0 E: 1 U: 0 0/0 D: 1 C: 0 H: 5 S: 0 B: 1 T: 0 I: 6 W: 5
+Processor 0x55BF00931BF0 E: 0 U: 0 0/0 D: 0 C: 0 H: 3 S: 0 B: 0 T: 0 I: 4 W: 3
+Processor 0x55BF00931EA0 E: 0 U: 0 0/0 D: 0 C: 0 H: 2 S: 0 B: 0 T: 0 I: 3 W: 2
+Processor 0x55BF00932150 E: 0 U: 0 0/0 D: 0 C: 0 H: 4 S: 0 B: 0 T: 0 I: 5 W: 4
+Processor 0x55BF00932400 E: 1 U: 0 0/0 D: 1 C: 0 H: 5 S: 0 B: 1 T: 0 I: 6 W: 5
+Processor 0x55BF009326B0 E: 0 U: 0 0/0 D: 0 C: 0 H: 3 S: 0 B: 0 T: 0 I: 4 W: 3
+Processor 0x55BF00932960 E: 0 U: 0 0/0 D: 0 C: 0 H: 3 S: 0 B: 0 T: 0 I: 4 W: 3
+Processor 0x55BF00932C10 E: 0 U: 0 0/0 D: 0 C: 0 H: 4 S: 0 B: 0 T: 0 I: 5 W: 4
+Processor (total) 0x0 E: 6 U: 0 0/0 D: 3 C: 0 H: 39 S: 0 B: 3 T: 0 I: 47 W: 39
+LoadManager (total) 0x0 47
+
+ Performance counter stats for '../src/cachetest -T 4,4 -F 4,4 -r 2 -d 1 49':
+
+     3,281,739,023      L1-dcache-loads                                             
+     1,070,036,781      L1-dcache-load-misses     #   32.61% of all L1-dcache hits  
+
+       1.024338616 seconds time elapsed
+
+       8.014063000 seconds user
+       0.012003000 seconds sys
+
+

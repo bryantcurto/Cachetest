@@ -1,0 +1,48 @@
+Uniform distribution used
+Thread idx=0 on subpath 0 starting index 0
+Thread idx=1 on subpath 0 starting index 0
+Thread idx=2 on subpath 0 starting index 0
+Thread idx=3 on subpath 0 starting index 0
+Thread idx=0 on subpath 1 starting index 30164
+Thread idx=2 on subpath 1 starting index 30164
+Thread idx=1 on subpath 1 starting index 30164
+Thread idx=3 on subpath 1 starting index 30164
+dataset=49
+duration=10
+cacheline=64
+buffer factor=1
+loop factor=1
+entries/elems=4426/12544
+buffer util=0.353
+
+Per-thread results
+Subpath 0/Thread 0 access count=4351054543
+Subpath 0/Thread 1 access count=4313083889
+Subpath 0/Thread 2 access count=4358439324
+Subpath 0/Thread 3 access count=4352251776
+Subpath 1/Thread 0 access count=4313710168
+Subpath 1/Thread 1 access count=4278459291
+Subpath 1/Thread 2 access count=4288037155
+Subpath 1/Thread 3 access count=4347159663
+
+Per-subpath results
+subpath 0 access count=194960348
+subpath 1 access count=47497093
+
+total access count=242457441
+
+Perf
+  dataset=49
+  results=
+
+ Performance counter stats for '../src/cachetest -T 4,4 -r 2 -d 10 49':
+
+    34,944,424,179      L1-dcache-loads                                             
+    11,311,612,765      L1-dcache-load-misses     #   32.37% of all L1-dcache hits  
+
+      10.042780003 seconds time elapsed
+
+      80.108220000 seconds user
+       0.019995000 seconds sys
+
+

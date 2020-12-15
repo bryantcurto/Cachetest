@@ -1,0 +1,135 @@
+Specified CPU Pins:
+> Subpath:
+>> Thread CPU Ids: 3 2 1 0 
+>> Thread CPU Ids: 3 2 1 0 
+>> Thread CPU Ids: 3 2 1 0 
+>> Thread CPU Ids: 3 2 1 0 
+> Subpath:
+>> Thread CPU Ids: 7 6 5 4 
+>> Thread CPU Ids: 7 6 5 4 
+>> Thread CPU Ids: 7 6 5 4 
+>> Thread CPU Ids: 7 6 5 4 
+Subpath Fibre Counts (migrate=Y):
+> 16 fibres
+> 16 fibres
+Uniform distribution used
+Thread 140385656862464 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 140385607837440 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 140385607927552 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 140385608017664 (pinned to CPUs: 0,1,2,3,) looping over subpath 0
+Thread 140385607747328 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+Thread 140385607476992 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+Thread 140385607567104 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+Thread 140385607657216 (pinned to CPUs: 4,5,6,7,) looping over subpath 1
+Fibre 0x56473c96ac80 idx=2 on cluster 0 starting index 0
+Fibre 0x56473c96aba0 idx=1 on cluster 0 starting index 0
+Fibre 0x56473c96ae40 idx=4 on cluster 0 starting index 0
+Fibre 0x56473c96b000 idx=6 on cluster 0 starting index 0
+Fibre 0x56473c96b0e0 idx=7 on cluster 0 starting index 0
+Fibre 0x56473c96b380 idx=10 on cluster 0 starting index 0
+Fibre 0x56473c96b460 idx=11 on cluster 0 starting index 0
+Fibre 0x56473c96b620 idx=13 on cluster 0 starting index 0
+Fibre 0x56473c96ad60 idx=3 on cluster 0 starting index 0
+Fibre 0x56473c96b7e0 idx=15 on cluster 0 starting index 0
+Fibre 0x56473c9695a0 idx=0 on cluster 0 starting index 0
+Fibre 0x56473c96bb60 idx=3 on cluster 1 starting index 30164
+Fibre 0x56473c96b8c0 idx=0 on cluster 1 starting index 30164
+Fibre 0x56473c96c180 idx=10 on cluster 1 starting index 30164
+Fibre 0x56473c96c260 idx=11 on cluster 1 starting index 30164
+Fibre 0x56473c96c420 idx=13 on cluster 1 starting index 30164
+Fibre 0x56473c96b540 idx=12 on cluster 0 starting index 0
+Fibre 0x56473c96c5e0 idx=15 on cluster 1 starting index 30164
+Fibre 0x56473c96ba80 idx=2 on cluster 1 starting index 30164
+Fibre 0x56473c96bd20 idx=5 on cluster 1 starting index 30164
+Fibre 0x56473c96be00 idx=6 on cluster 1 starting index 30164
+Fibre 0x56473c96bee0 idx=7 on cluster 1 starting index 30164
+Fibre 0x56473c96bfc0 idx=8 on cluster 1 starting index 30164
+Fibre 0x56473c96b1c0 idx=8 on cluster 0 starting index 0
+Fibre 0x56473c96c0a0 idx=9 on cluster 1 starting index 30164
+Fibre 0x56473c96af20 idx=5 on cluster 0 starting index 0
+Fibre 0x56473c96b2a0 idx=9 on cluster 0 starting index 0
+Fibre 0x56473c96c340 idx=12 on cluster 1 starting index 30164
+Fibre 0x56473c96c500 idx=14 on cluster 1 starting index 30164
+Fibre 0x56473c96b700 idx=14 on cluster 0 starting index 0
+Fibre 0x56473c96b9a0 idx=1 on cluster 1 starting index 30164
+Fibre 0x56473c96bc40 idx=4 on cluster 1 starting index 30164
+dataset=49
+duration=10
+cacheline=64
+buffer factor=1
+loop factor=1
+entries/elems=4426/12544
+buffer util=0.353
+
+Per-thread results
+Subpath 0/Thread 0 access count=253997076
+Subpath 0/Thread 1 access count=254001502
+Subpath 0/Thread 2 access count=253988224
+Subpath 0/Thread 3 access count=253970520
+Subpath 0/Thread 4 access count=253997076
+Subpath 0/Thread 5 access count=254005928
+Subpath 0/Thread 6 access count=253983798
+Subpath 0/Thread 7 access count=253977159
+Subpath 0/Thread 8 access count=253974946
+Subpath 0/Thread 9 access count=254001502
+Subpath 0/Thread 10 access count=253961668
+Subpath 0/Thread 11 access count=253912982
+Subpath 0/Thread 12 access count=253997076
+Subpath 0/Thread 13 access count=253988224
+Subpath 0/Thread 14 access count=253968307
+Subpath 0/Thread 15 access count=253981585
+Subpath 1/Thread 0 access count=253986011
+Subpath 1/Thread 1 access count=254008141
+Subpath 1/Thread 2 access count=253994863
+Subpath 1/Thread 3 access count=253950603
+Subpath 1/Thread 4 access count=254008141
+Subpath 1/Thread 5 access count=254008141
+Subpath 1/Thread 6 access count=253986011
+Subpath 1/Thread 7 access count=253919621
+Subpath 1/Thread 8 access count=254003715
+Subpath 1/Thread 9 access count=253990437
+Subpath 1/Thread 10 access count=253999289
+Subpath 1/Thread 11 access count=253813397
+Subpath 1/Thread 12 access count=253981585
+Subpath 1/Thread 13 access count=253992650
+Subpath 1/Thread 14 access count=253950603
+Subpath 1/Thread 15 access count=253955029
+
+Per-subpath results
+subpath 0 access count=18446744073478291893
+subpath 1 access count=18446744073478132557
+
+total access count=18446744073246872834
+
+Perf
+  dataset=49
+  results=
+LoadManager 0x56473C953D20 10 1:10
+Staging 0x56473C953DE0 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x56473C9572A0 E: 1 U: 0 0/0 D: 1 C: 0 H: 10 S: 0 B: 1 T: 0 I: 10 W: 10
+LoadManager 0x56473C95A778 81297 1:33845 2:126 3:15 4:6
+Staging 0x56473C95A838 E: 1802297 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+LoadManager 0x56473C95A9B0 50752 1:15137 2:91 3:15 4:7
+Staging 0x56473C95AA70 E: 1821044 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x56473C969430 E: 6 U: 0 0/0 D: 6 C: 0 H: 8451 S: 450728 B: 1 T: 0 I: 8401 W: 8400
+Processor 0x56473C969780 E: 3 U: 0 0/0 D: 2 C: 0 H: 8276 S: 450810 B: 0 T: 1 I: 8225 W: 8224
+Processor 0x56473C969A30 E: 5 U: 0 0/0 D: 3 C: 0 H: 8200 S: 451053 B: 0 T: 0 I: 8139 W: 8138
+Processor 0x56473C969CE0 E: 3 U: 0 0/0 D: 3 C: 0 H: 9061 S: 449705 B: 0 T: 2 I: 9031 W: 9030
+Processor 0x56473C969F90 E: 4 U: 0 0/0 D: 1 C: 0 H: 3597 S: 455141 B: 1 T: 0 I: 3309 W: 3308
+Processor 0x56473C96A240 E: 4 U: 0 0/0 D: 3 C: 0 H: 3956 S: 455350 B: 0 T: 0 I: 3634 W: 3633
+Processor 0x56473C96A4F0 E: 5 U: 0 0/0 D: 5 C: 0 H: 3664 S: 455365 B: 0 T: 1 I: 3390 W: 3389
+Processor 0x56473C96A7A0 E: 5 U: 0 0/0 D: 5 C: 0 H: 4029 S: 455187 B: 0 T: 3 I: 3670 W: 3669
+Processor (total) 0x0 E: 3623378 U: 0 0/0 D: 29 C: 0 H: 49244 S: 3623339 B: 3 T: 7 I: 47809 W: 47801
+LoadManager (total) 0x0 132059
+
+ Performance counter stats for '../src/cachetest -T 4,4 -F 16,16 -M -C 0-3.4-7 -r 2 -d 10 49':
+
+     8,923,066,155      L1-dcache-loads                                             
+     3,187,286,989      L1-dcache-load-misses     #   35.72% of all L1-dcache hits  
+
+      10.031725672 seconds time elapsed
+
+      79.806204000 seconds user
+       0.152011000 seconds sys
+
+

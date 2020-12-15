@@ -1,0 +1,113 @@
+Uniform distribution used
+Fibre 0x560c21ee7a50 idx=0 on cluster 0 starting index 0
+Fibre 0x560c21ee94f0 idx=6 on cluster 0 starting index 0
+Fibre 0x560c21ee9330 idx=4 on cluster 0 starting index 0
+Fibre 0x560c21ee9790 idx=9 on cluster 0 starting index 0
+Fibre 0x560c21ee9870 idx=10 on cluster 0 starting index 0
+Fibre 0x560c21ee9950 idx=11 on cluster 0 starting index 0
+Fibre 0x560c21ee9090 idx=1 on cluster 0 starting index 0
+Fibre 0x560c21ee9b10 idx=13 on cluster 0 starting index 0
+Fibre 0x560c21ee9cd0 idx=15 on cluster 0 starting index 0
+Fibre 0x560c21ee96b0 idx=8 on cluster 0 starting index 0
+Fibre 0x560c21ee9db0 idx=0 on cluster 1 starting index 30164
+Fibre 0x560c21ee9f70 idx=2 on cluster 1 starting index 30164
+Fibre 0x560c21eea130 idx=4 on cluster 1 starting index 30164
+Fibre 0x560c21eea210 idx=5 on cluster 1 starting index 30164
+Fibre 0x560c21eea2f0 idx=6 on cluster 1 starting index 30164
+Fibre 0x560c21ee9a30 idx=12 on cluster 0 starting index 0
+Fibre 0x560c21eea590 idx=9 on cluster 1 starting index 30164
+Fibre 0x560c21ee9e90 idx=1 on cluster 1 starting index 30164
+Fibre 0x560c21eea830 idx=12 on cluster 1 starting index 30164
+Fibre 0x560c21eea050 idx=3 on cluster 1 starting index 30164
+Fibre 0x560c21ee9170 idx=2 on cluster 0 starting index 0
+Fibre 0x560c21eeaad0 idx=15 on cluster 1 starting index 30164
+Fibre 0x560c21ee9250 idx=3 on cluster 0 starting index 0
+Fibre 0x560c21eea670 idx=10 on cluster 1 starting index 30164
+Fibre 0x560c21eea750 idx=11 on cluster 1 starting index 30164
+Fibre 0x560c21eea3d0 idx=7 on cluster 1 starting index 30164
+Fibre 0x560c21eea4b0 idx=8 on cluster 1 starting index 30164
+Fibre 0x560c21eea910 idx=13 on cluster 1 starting index 30164
+Fibre 0x560c21eea9f0 idx=14 on cluster 1 starting index 30164
+Fibre 0x560c21ee95d0 idx=7 on cluster 0 starting index 0
+Fibre 0x560c21ee9bf0 idx=14 on cluster 0 starting index 0
+Fibre 0x560c21ee9410 idx=5 on cluster 0 starting index 0
+dataset=49
+duration=1
+cacheline=64
+buffer factor=1
+loop factor=1
+entries/elems=4426/12544
+buffer util=0.353
+
+Per-thread results
+Subpath 0/Thread 0 access count=23190028
+Subpath 0/Thread 1 access count=23185602
+Subpath 0/Thread 2 access count=23194454
+Subpath 0/Thread 3 access count=23185602
+Subpath 0/Thread 4 access count=23194454
+Subpath 0/Thread 5 access count=23190028
+Subpath 0/Thread 6 access count=23185602
+Subpath 0/Thread 7 access count=23198880
+Subpath 0/Thread 8 access count=23198880
+Subpath 0/Thread 9 access count=23185602
+Subpath 0/Thread 10 access count=23190028
+Subpath 0/Thread 11 access count=23176750
+Subpath 0/Thread 12 access count=23190028
+Subpath 0/Thread 13 access count=23194454
+Subpath 0/Thread 14 access count=23194454
+Subpath 0/Thread 15 access count=23198880
+Subpath 1/Thread 0 access count=23190028
+Subpath 1/Thread 1 access count=23190028
+Subpath 1/Thread 2 access count=23190028
+Subpath 1/Thread 3 access count=23192241
+Subpath 1/Thread 4 access count=23187815
+Subpath 1/Thread 5 access count=23183389
+Subpath 1/Thread 6 access count=23183389
+Subpath 1/Thread 7 access count=23187815
+Subpath 1/Thread 8 access count=23187815
+Subpath 1/Thread 9 access count=23187815
+Subpath 1/Thread 10 access count=23185602
+Subpath 1/Thread 11 access count=23196667
+Subpath 1/Thread 12 access count=23192241
+Subpath 1/Thread 13 access count=23192241
+Subpath 1/Thread 14 access count=23178963
+Subpath 1/Thread 15 access count=23187815
+
+Per-subpath results
+subpath 0 access count=371053726
+subpath 1 access count=371013892
+
+total access count=742067618
+
+Perf
+  dataset=49
+  results=
+LoadManager 0x560C21ED2160 12 1:12
+Staging 0x560C21ED2220 E: 1 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x560C21ED56E0 E: 1 U: 0 0/0 D: 1 C: 0 H: 12 S: 0 B: 1 T: 0 I: 12 W: 12
+LoadManager 0x560C21ED8C08 9486 1:2931 2:48 3:11 4:9
+Staging 0x560C21ED8CC8 E: 164696 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+LoadManager 0x560C21ED8E40 2357 1:245 2:11 3:16 4:4
+Staging 0x560C21ED8F00 E: 167424 U: 0 0/0 D: 0 C: 0 H: 0 S: 0 B: 0 T: 0 I: 0 W: 0
+Processor 0x560C21EE78E0 E: 9 U: 0 0/0 D: 8 C: 0 H: 672 S: 41500 B: 1 T: 2 I: 588 W: 587
+Processor 0x560C21EE7C30 E: 5 U: 0 0/0 D: 3 C: 0 H: 542 S: 41122 B: 0 T: 0 I: 476 W: 475
+Processor 0x560C21EE7EE0 E: 6 U: 0 0/0 D: 4 C: 0 H: 672 S: 41440 B: 0 T: 0 I: 590 W: 589
+Processor 0x560C21EE8190 E: 4 U: 0 0/0 D: 4 C: 0 H: 1109 S: 40633 B: 0 T: 3 I: 1038 W: 1037
+Processor 0x560C21EE8440 E: 7 U: 0 0/0 D: 6 C: 0 H: 64 S: 42078 B: 1 T: 0 I: 63 W: 62
+Processor 0x560C21EE86F0 E: 3 U: 0 0/0 D: 3 C: 0 H: 62 S: 41549 B: 0 T: 1 I: 62 W: 61
+Processor 0x560C21EE89A0 E: 4 U: 0 0/0 D: 4 C: 0 H: 64 S: 41732 B: 0 T: 0 I: 64 W: 63
+Processor 0x560C21EE8C50 E: 2 U: 0 0/0 D: 2 C: 0 H: 82 S: 42064 B: 0 T: 0 I: 79 W: 78
+Processor (total) 0x0 E: 332162 U: 0 0/0 D: 35 C: 0 H: 3279 S: 332118 B: 3 T: 6 I: 2972 W: 2964
+LoadManager (total) 0x0 11855
+
+ Performance counter stats for '../src/cachetest -T 4,4 -F 16,16 -M -r 2 -d 1 49':
+
+       825,080,646      L1-dcache-loads                                             
+       289,865,869      L1-dcache-load-misses     #   35.13% of all L1-dcache hits  
+
+       1.028932618 seconds time elapsed
+
+       7.993388000 seconds user
+       0.028032000 seconds sys
+
+
