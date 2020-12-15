@@ -9,7 +9,7 @@ EVENTS="L1-dcache-loads,L1-dcache-load-misses"
 
 # Run the test with working set size that is ~1.5 * size of L1.
 
-# Vary the sizes, checking hits/misses for L2 and L3
+# TODO: Vary the sizes, checking hits/misses for L2 and L3
 L1_SIZE_SCALAR=1.5
 L1_SIZE_B=$(getconf -a | grep LEVEL1_DCACHE_SIZE | rev | cut -d ' ' -f 1 | rev) # bytes
 WORKING_SET_SIZE_KB=$(bc -l <<< "$L1_SIZE_B * $L1_SIZE_SCALAR / 1000. + 0.5" | cut -d "." -f 1)
@@ -18,12 +18,6 @@ echo "L1 DCache Size (B): $L1_SIZE_B"
 echo "Target Working Set Size (KB): $WORKING_SET_SIZE_KB"
 
 TESTS=
-
-# Use perf to get information about cache misses
-# Are these the cores we want to pin to, or something like 0-3,8-11
-
-# Base case using my own code to 
-
 
 # Thread test
 TESTS="$TESTS""threads $CACHETEST -T 4,4\n"
@@ -40,8 +34,9 @@ TESTS="$TESTS""migrate $CACHETEST -T 4,4 -F 16,16 -M\n"
 TESTS="$TESTS""migrate_group_pinned $CACHETEST -T 4,4 -F 16,16 -M -C 0-3.4-7\n"
 TESTS="$TESTS""migrate_indiv_pinned $CACHETEST -T 4,4 -F 16,16 -M -C 0-3.4-7 -I\n"
 
-# Create 16 fibres per subpath, no migration, fibres yield at the end of subpath
-# Understand the cost of yielding fibres
+# TODO:
+# Create 16 fibres per subpath, no migration just loop over subpath, fibres yield at the end of subpath
+# Understand the cost of yielding fibres.
 
 # Execute each test in a random order
 for duration in $DURATIONS; do
