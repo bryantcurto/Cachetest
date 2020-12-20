@@ -654,18 +654,18 @@ main( int argc, char* const argv[] ) {
 
 	// Log per-subpath access counts
 	*output << "Per-subpath results" << std::endl;
-	std::vector<uint64_t> subpathAccessCounts;
+	std::vector<unsigned long long> subpathAccessCounts;
 	for (size_t i = 0; i < loopResults.size(); i++) {
 		subpathAccessCounts.emplace_back(
-				std::accumulate(loopResults[i].begin(), loopResults[i].end(), 0,
-								[](uint64_t count, LoopResult res) { return count + res.accesscount; }));
+				std::accumulate(loopResults[i].begin(), loopResults[i].end(), (unsigned long long)0,
+								[](unsigned long long count, LoopResult res) { return count + res.accesscount; }));
 		*output << "subpath " << i << " access count=" << subpathAccessCounts.back() << std::endl;
 	}
 	*output << std::endl;
 
 	// Log total access count
 	*output << "total access count="
-			<< std::accumulate(subpathAccessCounts.begin(), subpathAccessCounts.end(), (uint64_t)0)
+			<< std::accumulate(subpathAccessCounts.begin(), subpathAccessCounts.end(), (unsigned long long)0)
 			<< std::endl << std::endl;
 
     *output << "Perf" << std::endl
