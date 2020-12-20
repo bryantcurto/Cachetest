@@ -1,10 +1,14 @@
 #!/bin/bash
 
+# NOTES:
+# hypterthreading disabled for all experiments
+# cores 0-7 on one socket and 8-15 on another
+
 CACHETEST=../src/cachetest
 OUTPUT_DIR=./output
 SEED=2
 #DURATIONS="2 1"
-DURATIONS="20 10"
+DURATIONS="2 1"
 EVENTS="L1-dcache-loads,L1-dcache-load-misses"
 
 # Run the test with working set size that is ~1.5 * size of L1.
@@ -16,27 +20,32 @@ WORKING_SET_SIZE_KB=$(bc -l <<< "$L1_SIZE_B * $L1_SIZE_SCALAR / 1000. + 0.5" | c
 
 echo "L1 DCache Size (B): $L1_SIZE_B"
 echo "Target Working Set Size (KB): $WORKING_SET_SIZE_KB"
+exit 1
 
 TESTS=
 
 # Thread test
-TESTS="$TESTS""threads $CACHETEST -T 4,4\n"
-TESTS="$TESTS""threads_group_pinned $CACHETEST -T 4,4 -C 0-3.4-7\n"
-TESTS="$TESTS""threads_indiv_pinned $CACHETEST -T 4,4 -C 0-3.4-7 -I\n"
+TESTS="$TESTS""threads $CACHETEST -T 8,8\n"
+TESTS="$TESTS""threads_group_pinned $CACHETEST -T 8,8 -C 0-7.8-15\n"
+TESTS="$TESTS""threads_indiv_pinned $CACHETEST -T 8,8 -C 0-7.8-15 -I\n"
 
 # Fibre test
-TESTS="$TESTS""fibres $CACHETEST -T 4,4 -F 4,4\n"
-TESTS="$TESTS""fibres_group_pinned $CACHETEST -T 4,4 -C 0-3.4-7 -F 4,4\n"
-TESTS="$TESTS""fibres_indiv_pinned $CACHETEST -T 4,4 -C 0-3.4-7 -I -F 4,4\n"
+TESTS="$TESTS""fibres $CACHETEST -T 8,8 -F 32,32\n"
+TESTS="$TESTS""fibres_group_pinned $CACHETEST -T 8,8 -C 0-7.8-15 -F 32,32\n"
+TESTS="$TESTS""fibres_indiv_pinned $CACHETEST -T 8,8 -C 0-7.8-15 -I -F 32,32\n"
 
 # Migration test
-TESTS="$TESTS""migrate $CACHETEST -T 4,4 -F 16,16 -M\n"
-TESTS="$TESTS""migrate_group_pinned $CACHETEST -T 4,4 -F 16,16 -M -C 0-3.4-7\n"
-TESTS="$TESTS""migrate_indiv_pinned $CACHETEST -T 4,4 -F 16,16 -M -C 0-3.4-7 -I\n"
+TESTS="$TESTS""migrate $CACHETEST -T 8,8 -F 32,32 -M\n"
+TESTS="$TESTS""migrate_group_pinned $CACHETEST -T 8,8 -C 0-7.8-15 -F 32,32 -M\n"
+TESTS="$TESTS""migrate_indiv_pinned $CACHETEST -T 8,8 -C 0-7.8-15 -I -F 32,32 -M\n"
 
-# TODO:
+# Yielding-Fibre-Code test
 # Create 16 fibres per subpath, no migration just loop over subpath, fibres yield at the end of subpath
 # Understand the cost of yielding fibres.
+#TESTS="$TESTS""yield_fibres $CACHETEST -T 8,8 -F 32,32\n"
+#TESTS="$TESTS""yield_fibres_group_pinned $CACHETEST -T 8,8 -C 0-7.8-15 -F 32,32\n"
+#TESTS="$TESTS""yield_fibres_indiv_pinned $CACHETEST -T 8,8 -C 0-7.8-15 -I -F 32,32\n"
+
 
 # Execute each test in a random order
 for duration in $DURATIONS; do

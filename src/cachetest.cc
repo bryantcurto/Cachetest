@@ -49,6 +49,9 @@ void * WRITEBACK_VAR;
 #define START_CODE 4711u
 #define EXIT_CODE 4710u
 
+// Have fibres yield at the end of each subpath
+//#define FIBRE_YIELD
+
 #define OPT_ARG_STRING "T:F:MC:Im:shab:d:f:l:r:c:e:o:Aw"
 
 //Global Variables
@@ -235,6 +238,10 @@ LoopResult loop(const element_size_t startIndex) {
     register element_size_t index = startIndex;
     unsigned char* startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
 
+#ifdef FIBRE_YIELD
+	register unsigned int steps = distr->getEntries() / numSubpaths;
+#endif // FIBRE_YIELD
+
     asm ("#//Loop Starts here");
     for (;;) {
 		if (index == (element_size_t)-1) {
@@ -259,6 +266,15 @@ LoopResult loop(const element_size_t startIndex) {
 
         index = next;
         accesscount += 1;
+
+#ifdef FIBRE_YIELD
+		if (accesscount % steps == 0) {
+			// We make the assumption that the number of elements in the walk is divisible by the number of subpaths
+			// We enforece it
+			fibre_yield();
+		}
+#endif // FIBRE_YIELD
+
         asm("#Exit");
     }
 
@@ -268,15 +284,18 @@ LoopResult loop(const element_size_t startIndex) {
 /*
  * Perform that pointer chasing by a single thread/fibre
  */
-LoopResult migratingLoop(const element_size_t startIndex, const unsigned int subpathIdx, const unsigned int subpathLength) {
+LoopResult migratingLoop(const element_size_t startIndex, const unsigned int subpathIdx) {
     register unsigned long long accesscount = 0;
     register unsigned int stop = START_CODE;
     unsigned int dummy=0;
 
     register element_size_t index = startIndex;
     unsigned char* startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
+
+	// == v == migration code == v ==
 	register unsigned int clusterIdx = subpathIdx;
-	register unsigned int steps = subpathLength;
+	register unsigned int steps = distr->getEntries() / numSubpaths;
+	// == ^ == migration code == ^ ==
 
     asm ("#//Loop Starts here");
     for (;;) {
@@ -303,6 +322,7 @@ LoopResult migratingLoop(const element_size_t startIndex, const unsigned int sub
         index = next;
         accesscount += 1;
 
+		// == v == migration code == v ==
 		if (accesscount % steps == 0) {
 			// We make the assumption that the number of elements in the walk is divisible by the number of subpaths
 			// We enforece it
@@ -310,6 +330,7 @@ LoopResult migratingLoop(const element_size_t startIndex, const unsigned int sub
 			fibre_migrate(&clusters[clusterIdx]);
 			//printf("Fibre start=%u migrate to cluster %llu, index %llu\n", startIndex, clusterIdx, index);
 		}
+		// == ^ == migration code == ^ ==
         asm("#Exit");
     }
 
@@ -515,7 +536,7 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 					assert(0 == fibre_barrier_wait(pack.testBarrier));
 
 					if (migrate) {
-						pack.res = migratingLoop(pack.startIdx, pack.subpathIdx, distr->getEntries() / numSubpaths);
+						pack.res = migratingLoop(pack.startIdx, pack.subpathIdx);
 					} else {
 						pack.res = loop(pack.startIdx);
 					}
