@@ -232,7 +232,6 @@ struct LoopResult {
  */
 LoopResult loop(const element_size_t startIndex) {
     register unsigned long long accesscount = 0;
-    register unsigned int stop = START_CODE;
     unsigned int dummy=0;
 
     register element_size_t index = startIndex;
@@ -240,6 +239,7 @@ LoopResult loop(const element_size_t startIndex) {
 
 #ifdef FIBRE_YIELD
 	register unsigned int steps = distr->getEntries() / numSubpaths;
+	register unsigned int curStep = 0;
 #endif // FIBRE_YIELD
 
     asm ("#//Loop Starts here");
@@ -268,7 +268,9 @@ LoopResult loop(const element_size_t startIndex) {
         accesscount += 1;
 
 #ifdef FIBRE_YIELD
-		if (accesscount % steps == 0) {
+		curStep += 1;
+		if (curStep == steps) {
+			curStep = 0;
 			// We make the assumption that the number of elements in the walk is divisible by the number of subpaths
 			// We enforece it
 			fibre_yield();
@@ -286,7 +288,6 @@ LoopResult loop(const element_size_t startIndex) {
  */
 LoopResult migratingLoop(const element_size_t startIndex, const unsigned int subpathIdx) {
     register unsigned long long accesscount = 0;
-    register unsigned int stop = START_CODE;
     unsigned int dummy=0;
 
     register element_size_t index = startIndex;
@@ -294,7 +295,8 @@ LoopResult migratingLoop(const element_size_t startIndex, const unsigned int sub
 
 	// == v == migration code == v ==
 	register unsigned int clusterIdx = subpathIdx;
-	register unsigned int steps = distr->getEntries() / numSubpaths;
+	const register unsigned int steps = distr->getEntries() / numSubpaths;
+	register unsigned int curStep = 0;
 	// == ^ == migration code == ^ ==
 
     asm ("#//Loop Starts here");
@@ -321,12 +323,18 @@ LoopResult migratingLoop(const element_size_t startIndex, const unsigned int sub
 
         index = next;
         accesscount += 1;
+		curStep += 1;
 
 		// == v == migration code == v ==
-		if (accesscount % steps == 0) {
+		if (curStep == steps) {
+			curStep = 0;
+
 			// We make the assumption that the number of elements in the walk is divisible by the number of subpaths
 			// We enforece it
-			clusterIdx = (clusterIdx + 1) % numSubpaths;
+			clusterIdx += 1;
+			if (clusterIdx >= numSubpaths) {
+				clusterIdx = 0;
+			}
 			fibre_migrate(&clusters[clusterIdx]);
 			//printf("Fibre start=%u migrate to cluster %llu, index %llu\n", startIndex, clusterIdx, index);
 		}
