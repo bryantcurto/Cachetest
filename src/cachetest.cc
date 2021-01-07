@@ -68,6 +68,8 @@ Result_vector_t     Results;
 std::stringstream   ss, ss1;
 Options             opt;
 
+const size_t MAX_NUM_SUBPATHS = 10;
+
 size_t numSubpaths;
 std::vector<size_t> subpathThreadCounts;
 std::vector<std::vector<std::unordered_set<int> > > cpuIdSets;
@@ -78,7 +80,11 @@ volatile bool startExperiment = false;
 
 std::vector<size_t> subpathFibreCounts;
 bool migrate = false;
-Cluster* clusters = nullptr;
+
+// Dirty trick to avoid performing a memory load to get base address of
+// cluster array.
+// Treat this as a chunk of untyped memory used to store the clusters.
+uint8_t clusters[MAX_NUM_SUBPATHS * sizeof(Cluster)];
 
 //We should add a sanity check to ensure that the dataset is a multiple of 
 //the element size, otherwise we might have half sized elements, which could force
@@ -287,21 +293,23 @@ LoopResult loop(const element_size_t startIndex) {
  * Perform that pointer chasing by a single thread/fibre
  */
 LoopResult migratingLoop(const element_size_t startIndex, const unsigned int subpathIdx) {
-    register unsigned long long accesscount = 0;
+	// Register variables have underscore (_) prefix
+    register unsigned long long _accesscount = 0;
     unsigned int dummy=0;
 
-    register element_size_t index = startIndex;
-    unsigned char* startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
+    register element_size_t _index = startIndex;
+    register unsigned char* _startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
 
 	// == v == migration code == v ==
-	register unsigned int clusterIdx = subpathIdx;
-	const register unsigned int steps = distr->getEntries() / numSubpaths;
-	register unsigned int curStep = 0;
+	const register size_t _numSubpaths = numSubpaths;
+	register unsigned int _subpathIdx = subpathIdx;
+	const register unsigned int _numSubpathSteps = distr->getEntries() / numSubpaths;
+	register unsigned int _curStep = 0;
 	// == ^ == migration code == ^ ==
 
     asm ("#//Loop Starts here");
     for (;;) {
-		if (index == (element_size_t)-1) {
+		if (_index == (element_size_t)-1) {
 			// The test is done!
 			// When the alarm goes off, subloops are intentionally broken
 			// to notify the threads that the test is done. This is done
@@ -310,39 +318,40 @@ LoopResult migratingLoop(const element_size_t startIndex, const unsigned int sub
 			break;
 		}
 
-        element_size_t next = *(element_size_t*)(startAddr + index);
+        element_size_t next = *(element_size_t*)(_startAddr + _index);
 
         //for ( int j = 0; j < loopfactor; j += 1 ) dummy *= next;
 #ifdef WRITEBACK
-        *(element_size_t*)(startAddr + index + sizeof(int)) = dummy;
+        *(element_size_t*)(_startAddr + _index + sizeof(int)) = dummy;
 #endif
 #ifdef DEBUG_RUN
-        std::cout << index << ' ' << next << std::endl;
-        std::cout << std::hex << (element_size_t*)(startAddr+index) << std::dec << std::endl;
+        std::cout << _index << ' ' << next << std::endl;
+        std::cout << std::hex << (element_size_t*)(_startAddr + _index) << std::dec << std::endl;
 #endif
 
-        index = next;
-        accesscount += 1;
-		curStep += 1;
+        _index = next;
+        _accesscount += 1;
+		_curStep += 1;
 
 		// == v == migration code == v ==
-		if (curStep == steps) {
-			curStep = 0;
+		if (_curStep >= _numSubpathSteps) {
+			_curStep = 0;
 
 			// We make the assumption that the number of elements in the walk is divisible by the number of subpaths
 			// We enforece it
-			clusterIdx += 1;
-			if (clusterIdx >= numSubpaths) {
-				clusterIdx = 0;
+			_subpathIdx += 1;
+			if (_subpathIdx >= _numSubpaths) {
+				_subpathIdx = 0;
 			}
-			fibre_migrate(&clusters[clusterIdx]);
-			//printf("Fibre start=%u migrate to cluster %llu, index %llu\n", startIndex, clusterIdx, index);
+			Cluster *cluster = (Cluster*)&clusters + _subpathIdx;
+			fibre_migrate(cluster);
+			//printf("Fibre start=%u migrate to cluster %llu, index %llu\n", startIndex, subpathIdx, index);
 		}
 		// == ^ == migration code == ^ ==
         asm("#Exit");
     }
 
-	return LoopResult{.accesscount=accesscount, .index=index};
+	return LoopResult{.accesscount=_accesscount, .index=_index};
 }
 
 std::vector<std::vector<LoopResult> > threadTest() {
@@ -453,17 +462,18 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 
 	// Create a cluster per subpath and assign worker
 	// threads desired characteristics
-	clusters = new Cluster[numSubpaths];
+	assert(numSubpaths <= MAX_NUM_SUBPATHS);
+	new ((void*)&clusters) Cluster[numSubpaths];
 	for (size_t i = 0; i < numSubpaths; i++) {
 		const size_t numThreads = subpathThreadCounts[i];
 
-		clusters[i].addWorkers(numThreads);
+		((Cluster*)&clusters + i)->addWorkers(numThreads);
 
 		// Set cpu affinity for worker threads
 		if (cpuIdSets.size() > 0) {
 			// Get thread ids
 			pthread_t* tids = new pthread_t[numThreads];
-			assert(clusters[i].getWorkerSysIDs(tids, numThreads) == numThreads);
+			assert(((Cluster*)&clusters + i)->getWorkerSysIDs(tids, numThreads) == numThreads);
 
 			// Set affinity for each thread
 			for (size_t j = 0; j < numThreads; j++) {
@@ -504,7 +514,7 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 
 		fibre_attr_t attr;
 		attr.init();
-		attr.cluster = &clusters[i];
+		attr.cluster = ((Cluster*)&clusters + i);
 
 		// Spawn each fiber for this cluster
 		for (size_t j = 0; j < numSubpathFibres; j++) {
