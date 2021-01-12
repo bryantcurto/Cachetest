@@ -1,24 +1,31 @@
 pushd output > /dev/null
-dir_long=20
-dir_short=10
+dir_long=2
+dir_short=1
 
-for test_prefix in $(ls | rev | cut -d '_' -f 3- | rev | sort -u); do
+for test_prefix in $(ls *.out | rev | cut -d '_' -f 3- | rev | sort -u); do
+  log_short="$test_prefix"_duration_"$dir_short".out
+  log_long="$test_prefix"_duration_"$dir_long".out
 
-  loads_short=$(cat "$test_prefix"_duration_"$dir_short".out | grep L1-dcache-loads | cut -d 'L' -f 1 | sed 's/[ ,]//g')
-  loads_long=$(cat "$test_prefix"_duration_"$dir_long".out | grep L1-dcache-loads | cut -d 'L' -f 1 | sed 's/[ ,]//g')
+  access_short=$(cat "$log_short" | grep "total access count=" | cut -d '=' -f 2)
+  access_long=$(cat "$log_long" | grep "total access count=" | cut -d '=' -f 2)
 
-  misses_short=$(cat "$test_prefix"_duration_"$dir_short"* | grep L1-dcache-load-misses | cut -d 'L' -f 1 | sed 's/[ ,]//g')
-  misses_long=$(cat "$test_prefix"_duration_"$dir_long"* | grep L1-dcache-load-misses | cut -d 'L' -f 1 | sed 's/[ ,]//g')
+  loads_short=$(cat "$log_short" | grep L1-dcache-loads | cut -d 'L' -f 1 | sed 's/[ ,]//g')
+  loads_long=$(cat "$log_long" | grep L1-dcache-loads | cut -d 'L' -f 1 | sed 's/[ ,]//g')
+
+  misses_short=$(cat "$log_short" | grep L1-dcache-load-misses | cut -d 'L' -f 1 | sed 's/[ ,]//g')
+  misses_long=$(cat "$log_long" | grep L1-dcache-load-misses | cut -d 'L' -f 1 | sed 's/[ ,]//g')
 
   loads=$(echo "$loads_long - $loads_short" | bc -l)
   misses=$(echo "$misses_long - $misses_short" | bc -l)
 
   echo "==== $test_prefix ===="
-  printf "%s sec test: loads=%s\n" $dir_long $loads_long
-  printf "%s sec test: loads=%s\n" $dir_short $loads_short
-  printf "%s sec test: misses=%s\n" $dir_long $misses_long
-  printf "%s sec test: misses=%s\n" $dir_short $misses_short
-  printf "%-15s %-20s %-20s %-20s\n" "miss rate = " "$(echo "$misses / $loads" | bc -l)" "loads=$loads" "misses=$misses"
+  printf "%s sec test: accesses = %'d\n" $dir_long $access_long
+  printf "%s sec test: accesses = %'d\n" $dir_short $access_short
+  printf "%s sec test: loads = %'d\n" $dir_long $loads_long
+  printf "%s sec test: loads = %'d\n" $dir_short $loads_short
+  printf "%s sec test: misses = %'d\n" $dir_long $misses_long
+  printf "%s sec test: misses = %'d\n" $dir_short $misses_short
+  printf "miss rate = %.2f%% / loads = %'d / misses = %'d\n" "$(echo "$misses / $loads * 100." | bc -l)" $loads $misses
 done
 
 #for test_prefix in $(ls | rev | cut -d '_' -f 3- | rev | sort -u); do
