@@ -976,6 +976,8 @@ bool
 Setup_distribution()
 {
 
+    distr = Distribution::createDistribution(Distribution::SUBPATH,buffer,opt.cacheline,sizeof(element_size_t),opt.seed);
+    /*
     // the code below sets up a list of cacheline-aligned and -sized blocks,
     // such that the first (sizeof int) bytes are used as a pointer to the
     // next index, while the next (sizeof int) bytes can be used for a dummy
@@ -988,6 +990,7 @@ Setup_distribution()
 		std::cerr << "LINEAR DISTRIBUTION should NOT be used for EXPERIMENT, specify non-negative seed!" << std::endl;
         distr = Distribution::createDistribution(Distribution::LINEAR,buffer,opt.cacheline,sizeof(element_size_t),opt.seed);
     }
+    */
     distr->distribute();
 
 #ifdef DEBUG_CREATE

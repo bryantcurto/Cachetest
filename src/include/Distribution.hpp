@@ -18,12 +18,12 @@ class Distribution {
 
         unsigned int entries, num_elements, num_elements_in_cacheline;
     public:
-        enum TYPE {UNIFORM, ZIPF, LINEAR, WUNI};
+        enum TYPE {UNIFORM, ZIPF, LINEAR, WUNI, SUBPATH};
         
         //Factory method
         static Distribution* createDistribution(TYPE t,Buffer* buffer , int cacheline, size_t element_size, int seed); 
 
-        void setup(Buffer*,size_t,int,int cacheline);
+        virtual void setup(Buffer*,size_t,int,int cacheline);
         void distribute();  //Public start point
 
         Distribution();
@@ -68,6 +68,11 @@ class ZipfDistribution: public Distribution {
 };
 
 class LinearDistribution: public Distribution {
+    public:
+        virtual void doDistribute();
+};
+
+class SubpathDistribution : public Distribution {
     public:
         virtual void doDistribute();
 };

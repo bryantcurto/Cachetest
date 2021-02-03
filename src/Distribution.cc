@@ -1,4 +1,6 @@
 #include <Distribution.hpp>
+#include <algorithm>
+#include <unordered_set>
 
 Distribution* 
 Distribution::createDistribution(Distribution::TYPE t,
@@ -21,6 +23,9 @@ Distribution::createDistribution(Distribution::TYPE t,
         case WUNI:
             ptr = new WeightedUniform;
             break;;
+        case SUBPATH:
+            ptr = new SubpathDistribution;
+            break;
         default:
             return NULL;
             break;;
@@ -362,3 +367,45 @@ void WeightedUniform::doDistribute() {
     }
     *(int*)(buffer->Get_buffer_pointer() + previdx) = buffer->Get_start_address() - buffer->Get_buffer_pointer();
 }
+
+void SubpathDistribution::doDistribute() {
+    if (buffer->Is_large_buffer() && buffer->Get_slabs().size() > 0) {
+        fprintf(stderr, "ERROR: doHugeDistribution() not implemtned\n");
+        exit(-1);
+    }
+    this->sequence.clear();
+    entries = 0;
+    const int numDatalines = buffer->Get_size() / cacheline;
+    MTRand mr(seed);
+
+    // Create set of buffer-line indices not yet used.
+    // Offset zero is always the first entry in the path.
+    std::unordered_set<element_size_t> unusedLinesIndices;
+    unusedLinesIndices.reserve(numDatalines);
+    for (int i = 1; i < numDatalines; i++) {
+        unusedLinesIndices.emplace(i);
+    }
+
+    // Select random entry from set of unused buffer line indices
+    // as the next entry in the path.
+    element_size_t prevCacheline = 0;
+
+    // Account for first line/entry:
+    this->sequence.emplace_back(0);
+    entries += 1;
+
+    assert(unusedLinesIndices.size() < ((size_t)1 << 32)); // required by MTRand
+    while (unusedLinesIndices.size() > 0) {
+        unsigned long entryIdx = mr.randInt(unusedLinesIndices.size() - 1);
+        auto it = unusedLinesIndices.begin();
+        for (unsigned long i = 0; i < entryIdx; i++, it++) {}
+        *(element_size_t*)(buffer->Get_start_address() + prevCacheline * cacheline) = *it * cacheline;
+        prevCacheline = *it;
+        unusedLinesIndices.erase(it);
+
+        this->sequence.emplace_back(prevCacheline);
+        entries += 1;
+    }
+    *(element_size_t*)(buffer->Get_start_address() + prevCacheline * cacheline) = 0;
+}
+
