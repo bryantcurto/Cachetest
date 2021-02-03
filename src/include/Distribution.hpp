@@ -21,9 +21,9 @@ class Distribution {
         enum TYPE {UNIFORM, ZIPF, LINEAR, WUNI, SUBPATH};
         
         //Factory method
-        static Distribution* createDistribution(TYPE t,Buffer* buffer , int cacheline, size_t element_size, int seed); 
+        static Distribution* createDistribution(TYPE t,Buffer* buffer , int cacheline, size_t element_size, int seed, const size_t numSubpaths=1);
 
-        virtual void setup(Buffer*,size_t,int,int cacheline);
+        void setup(Buffer*,size_t,int,int cacheline);
         void distribute();  //Public start point
 
         Distribution();
@@ -73,7 +73,14 @@ class LinearDistribution: public Distribution {
 };
 
 class SubpathDistribution : public Distribution {
+    private:
+        size_t numSubpaths;
+
     public:
+        SubpathDistribution(const size_t numSubpaths)
+        : numSubpaths(numSubpaths)
+        {}
+
         virtual void doDistribute();
 };
 
