@@ -126,15 +126,21 @@ std::vector<std::string> split(const std::string& str, const std::string& del) {
 std::vector<element_size_t> splitPointerChasingPath(const element_size_t numPaths) {
 	auto printPath = [](element_size_t idx) {
 		std::cout << "Path:" << std::endl;
+		element_size_t minIdx = std::numeric_limits<element_size_t>::max();
+		element_size_t maxIdx = 0;
 		const element_size_t firstIdx = idx;
 		size_t length = 0;
 		do {
+			minIdx = (minIdx < idx ? minIdx : idx);
+			maxIdx = (maxIdx > idx ? maxIdx : idx);
 			std::cout << idx << ", ";
 			length += 1;
 			idx = *(element_size_t *)(buffer->Get_buffer_pointer() + idx);
 		} while (firstIdx != idx);
 
-		std::cout << std::endl << "  length=" << length << " vs " << distr->getEntries() << std::endl;
+		std::cout << std::endl
+				  << "  length=" << length << " vs " << distr->getEntries() << std::endl
+				  << "  range=[" << minIdx << ", " << maxIdx << "]" << std::endl;
 	};
 #ifdef DEBUG
 	// Log input pointer chaising path
@@ -976,7 +982,7 @@ bool
 Setup_distribution()
 {
 
-    distr = Distribution::createDistribution(Distribution::SUBPATH,buffer,opt.cacheline,sizeof(element_size_t),opt.seed);
+    distr = Distribution::createDistribution(Distribution::SUBPATH,buffer,opt.cacheline,sizeof(element_size_t),opt.seed,numSubpaths);
     /*
     // the code below sets up a list of cacheline-aligned and -sized blocks,
     // such that the first (sizeof int) bytes are used as a pointer to the
