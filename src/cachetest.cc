@@ -957,7 +957,11 @@ Setup_buffer()
     //unsigned char* buffer = new unsigned char[buffersize];
     //memset( buffer, 0, buffersize );
 #ifdef DEBUG
-    std::cout << "Buffer at: " << std::hex << (element_size_t*)buffer->getPtr() << " - " << (element_size_t*)(buffer->getPtr() + buffersize) << std::endl;
+    std::cout << "Buffer at: "
+              << std::hex << (element_size_t*)buffer->Get_buffer_pointer()
+              << " - "
+              << (element_size_t*)(buffer->Get_buffer_pointer() + buffersize)
+              << std::endl << std::dec;
 #endif
 
     return true;
