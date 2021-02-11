@@ -51,6 +51,8 @@ void * WRITEBACK_VAR;
 
 // Have fibres yield at the end of each subpath
 //#define FIBRE_YIELD
+//#define FIBRE_YIELD_GLOBAL
+//#define FIBRE_YIELD_FORCE
 
 #define OPT_ARG_STRING "T:F:MC:Im:shab:d:f:l:r:c:e:o:Aw"
 
@@ -249,10 +251,10 @@ LoopResult loop(const element_size_t startIndex) {
     register element_size_t index = startIndex;
     unsigned char* startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
 
-#ifdef FIBRE_YIELD
+#if defined(FIBRE_YIELD) || defined(FIBRE_YIELD_GLOBAL) || defined(FIBRE_YIELD_FORCE)
 	register unsigned int steps = distr->getEntries() / numSubpaths;
 	register unsigned int curStep = 0;
-#endif // FIBRE_YIELD
+#endif
 
     asm ("#//Loop Starts here");
     for (;;) {
@@ -279,15 +281,24 @@ LoopResult loop(const element_size_t startIndex) {
         index = next;
         accesscount += 1;
 
-#ifdef FIBRE_YIELD
+#if defined(FIBRE_YIELD) || defined(FIBRE_YIELD_GLOBAL) || defined(FIBRE_YIELD_FORCE)
 		curStep += 1;
 		if (curStep == steps) {
 			curStep = 0;
 			// We make the assumption that the number of elements in the walk is divisible by the number of subpaths
 			// We enforece it
-			fibre_yield();
+
+#if defined(FIBRE_YIELD)
+			StackContext::yield();
+#elif defined(FIBRE_YIELD_GLOBAL)
+			StackContext::yieldGlobal();
+#elif defined(FIBRE_YIELD_FORCE)
+			StackContext::forceYield();
+#else
+		((void(*)())nullptr)(); // crash
+#endif
 		}
-#endif // FIBRE_YIELD
+#endif
 
         asm("#Exit");
     }
