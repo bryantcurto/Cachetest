@@ -70,6 +70,8 @@ Result_vector_t     Results;
 std::stringstream   ss, ss1;
 Options             opt;
 
+const size_t CACHE_LINE_SIZE = 64;
+
 const size_t MAX_NUM_SUBPATHS = 10;
 
 size_t numSubpaths;
@@ -86,7 +88,11 @@ bool migrate = false;
 // Dirty trick to avoid performing a memory load to get base address of
 // cluster array.
 // Treat this as a chunk of untyped memory used to store the clusters.
-uint8_t clusters[MAX_NUM_SUBPATHS * sizeof(Cluster)];
+struct alignas(CACHE_LINE_SIZE) PaddedCluster {
+	Cluster cluster;
+	int8_t _padding[sizeof(Cluster) % CACHE_LINE_SIZE];
+};
+alignas(CACHE_LINE_SIZE) int8_t paddedClusters[MAX_NUM_SUBPATHS * sizeof(PaddedCluster)];
 
 //We should add a sanity check to ensure that the dataset is a multiple of 
 //the element size, otherwise we might have half sized elements, which could force
@@ -360,7 +366,7 @@ LoopResult migratingLoop(const element_size_t startIndex, const unsigned int sub
 			if (_subpathIdx >= _numSubpaths) {
 				_subpathIdx = 0;
 			}
-			Cluster *cluster = (Cluster*)&clusters + _subpathIdx;
+			Cluster *cluster = &((PaddedCluster *)paddedClusters + _subpathIdx)->cluster;
 			fibre_migrate(cluster);
 			//printf("Fibre start=%u migrate to cluster %llu, index %llu\n", startIndex, subpathIdx, index);
 		}
@@ -480,17 +486,18 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 	// Create a cluster per subpath and assign worker
 	// threads desired characteristics
 	assert(numSubpaths <= MAX_NUM_SUBPATHS);
-	new ((void*)&clusters) Cluster[numSubpaths];
+	new ((void*)&paddedClusters) PaddedCluster[numSubpaths];
 	for (size_t i = 0; i < numSubpaths; i++) {
 		const size_t numThreads = subpathThreadCounts[i];
 
-		((Cluster*)&clusters + i)->addWorkers(numThreads);
+		printf("Cluster %zu:\n", i);
+		((PaddedCluster*)&paddedClusters + i)->cluster.addWorkers(numThreads);
 
 		// Set cpu affinity for worker threads
 		if (cpuIdSets.size() > 0) {
 			// Get thread ids
 			pthread_t* tids = new pthread_t[numThreads];
-			assert(((Cluster*)&clusters + i)->getWorkerSysIDs(tids, numThreads) == numThreads);
+			assert(((PaddedCluster*)&paddedClusters + i)->cluster.getWorkerSysIDs(tids, numThreads) == numThreads);
 
 			// Set affinity for each thread
 			for (size_t j = 0; j < numThreads; j++) {
@@ -531,7 +538,7 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 
 		fibre_attr_t attr;
 		attr.init();
-		attr.cluster = ((Cluster*)&clusters + i);
+		attr.cluster = &((PaddedCluster*)&paddedClusters + i)->cluster;
 
 		// Spawn each fiber for this cluster
 		for (size_t j = 0; j < numSubpathFibres; j++) {
