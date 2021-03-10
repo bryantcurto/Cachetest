@@ -27,6 +27,7 @@
 #include "zipf.h"
 #include <Prototypes.hpp>
 #include <config.h>
+#include <cassert>
 
 #include <pthread.h>
 #include <sched.h>
@@ -451,6 +452,43 @@ std::vector<std::vector<LoopResult> > threadTest() {
 	return loopResults;
 }
 
+struct CallbackPack {
+	LoopResult& res;
+	size_t subpathIdx, fibreIdx;
+	size_t startIdx;
+	fibre_mutex_t *loggingMutex;
+	fibre_barrier_t *testBarrier;
+};
+
+void *fibreCallback(void *p) {
+	CallbackPack& pack = *(CallbackPack *)p;
+
+	// Don't handle alarm signal when it goes off.
+	// This is done for the underlying worker thread since we can't
+	// have one thread block signals for another thread.
+	// TODO FIX: This doesn't guarantee that we get all of the worker fibres.
+	blockAlarmSignal();
+
+	assert(0 == fibre_mutex_lock(pack.loggingMutex));
+	std::cout << "Fibre " << fibre_self() << " idx=" << pack.fibreIdx
+			  << " on cluster " << pack.subpathIdx << " starting index "
+			  << pack.startIdx << std::endl;
+	assert(0 == fibre_mutex_unlock(pack.loggingMutex));
+
+	// Have all fibres wait at barrior until main thread starts test
+	numAtBarrior.fetch_add(1);
+	assert(0 == fibre_barrier_wait(pack.testBarrier));
+
+	if (migrate) {
+		pack.res = migratingLoop(pack.startIdx, pack.subpathIdx);
+	} else {
+		pack.res = loop(pack.startIdx);
+	}
+
+	delete (CallbackPack *)p;
+	return NULL;
+}
+
 std::vector<std::vector<LoopResult> > fibreTest() {
 	// Create container for results
 	std::vector<std::vector<LoopResult> > loopResults;
@@ -542,13 +580,6 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 
 		// Spawn each fiber for this cluster
 		for (size_t j = 0; j < numSubpathFibres; j++) {
-			struct CallbackPack {
-				LoopResult& res;
-				size_t subpathIdx, fibreIdx;
-				size_t startIdx;
-				fibre_mutex_t *loggingMutex;
-				fibre_barrier_t *testBarrier;
-			};
 			CallbackPack *pack = new CallbackPack{
 				.res=loopResults[i][j],
 				.subpathIdx=i,
@@ -559,33 +590,7 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 			};
 
 			// Spawn the fiber and have it execute lambda
-			assert(0 == fibre_create(&fibres[curFibreIdx], &attr,
-				[](void *p) -> void * {
-					CallbackPack& pack = *(CallbackPack *)p;
-
-					// Don't handle alarm signal when it goes off.
-					// This is done for the underlying worker thread since we can't
-					// have one thread block signals for another thread.
-					// TODO FIX: This doesn't guarantee that we get all of the worker fibres.
-					blockAlarmSignal();
-
-					assert(0 == fibre_mutex_lock(pack.loggingMutex));
-					std::cout << "Fibre " << fibre_self() << " idx=" << pack.fibreIdx << " on cluster " << pack.subpathIdx << " starting index " << pack.startIdx << std::endl;
-					assert(0 == fibre_mutex_unlock(pack.loggingMutex));
-
-					// Have all fibres wait at barrior until main thread starts test
-					numAtBarrior.fetch_add(1);
-					assert(0 == fibre_barrier_wait(pack.testBarrier));
-
-					if (migrate) {
-						pack.res = migratingLoop(pack.startIdx, pack.subpathIdx);
-					} else {
-						pack.res = loop(pack.startIdx);
-					}
-
-					delete (CallbackPack *)p;
-					return NULL;
-				}, (void *)pack));
+			assert(0 == fibre_create(&fibres[curFibreIdx], &attr, fibreCallback, (void *)pack));
 			curFibreIdx++;
 		}
 	}
