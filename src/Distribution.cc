@@ -376,54 +376,97 @@ void SubpathDistribution::doDistribute() {
     }
     this->sequence.clear();
     entries = 0;
-    const int numDatalines = buffer->Get_size() / cacheline;
-    MTRand mr(seed);
 
-    assert(numDatalines % this->numSubpaths == 0);
-    const int numDatalinesPerSubpath = numDatalines / this->numSubpaths;
-    const int bufferOffset = buffer->Get_start_address() - buffer->Get_buffer_pointer();
+    // Extension of MTRand to satisfy requirements of UniformRandomBitGenerator.
+    // The constants were taken from MTRand source.
+    struct MTRandURBG : public MTRand {
+        using MTRand::MTRand;
+        using result_type = uint32;
 
-    // Split buffer into chunks where each chunk is associated with a subpath.
-    // Create a path in each chunk and link chunk paths together using first and last entries.
-    for (size_t subpathIdx = 0; subpathIdx < this->numSubpaths; subpathIdx++) {
-        element_size_t chunkDatalineOffset = subpathIdx * numDatalinesPerSubpath;
-
-        // Create set of data line indices not yet used in current chunk.
-        // The first entry of the chunk is always the first entry in the path.
-        std::unordered_set<element_size_t> unusedLinesIndices;
-        unusedLinesIndices.reserve(numDatalinesPerSubpath);
-        for (int i = 1; i < numDatalinesPerSubpath; i++) {
-            unusedLinesIndices.emplace(chunkDatalineOffset + i);
+        constexpr result_type min() {
+            return 0;
         }
 
-        element_size_t prevDataline = chunkDatalineOffset + 0;
+        constexpr result_type max() {
+            return (uint32_t)-1;
+        }
 
-        // Account for first line/entry:
-        this->sequence.emplace_back(prevDataline);
+        result_type operator()() {
+            return randInt(max());
+        }
+    };
+    MTRandURBG mr(seed);
+
+    // Dataline is a "cacheline in the buffer
+    const int numDatalines = buffer->Get_size() / cacheline;
+    const int numDatalinesPerSubpath = numDatalines / this->numSubpaths;
+    const int bufferOffset = buffer->Get_start_address() - buffer->Get_buffer_pointer();
+    assert(numDatalines % this->numSubpaths == 0);
+
+    // Split buffer into chunks where each chunk is associated with a subpath.
+    // Create a path in each chunk and link chunk paths together using first entries.
+    for (size_t subpathIdx = 0; subpathIdx < this->numSubpaths; subpathIdx++) {
+        const size_t chunkOffsetDatalines = subpathIdx * numDatalinesPerSubpath;
+        const element_size_t chunkOffsetBytes = chunkOffsetDatalines * cacheline;
+
+        // Fill container with invalid value to trigger later assertion if something went wrong
+        for (size_t i = 0; i < numDatalinesPerSubpath * cacheline; i++) {
+            *(element_size_t*)(buffer->Get_buffer_pointer() + bufferOffset + chunkOffsetBytes + i) = (element_size_t)-1;
+        }
+
+        if (64 != cacheline) {
+            fprintf(stderr, "Unexpected cacheline size: %d\n", cacheline);
+            exit(-1);
+        }
+
+        // Write indices into unused region of datalines of the chunk. These indices
+        // get shuffled and subsequently used to construct the path.
+        // The objective is to make this memory efficient for when using large chunks.
+        struct CacheLine {
+            element_size_t pathIndex;
+            // indexToShuffle corresponds to index of element in cachelineArray and
+            // datalines starting from base of current chunk.
+            element_size_t indexToShuffle;
+            int8_t padding[64 - 2 * sizeof(element_size_t)];
+        };
+        CacheLine *cachelineArray = (CacheLine *)(buffer->Get_buffer_pointer() + bufferOffset + chunkOffsetBytes);
+
+        // Write index N+1 to dataline N.
+        // Reserve the index corresponding to the first data line in the chunk so we can
+        // close loop or link to previous and next chunks.
+        for (size_t i = 0; i < numDatalinesPerSubpath - 1; i++) {
+            cachelineArray[i].indexToShuffle = i + 1;
+        }
+
+        // Shuffle datalines in chunk
+        std::shuffle(&cachelineArray[0], &cachelineArray[numDatalinesPerSubpath - 2], mr);
+
+        // Construct pointer chasing path in chunk from shuffled indices.
+        // prevIdx corresponds to index of element in cachelineArray and datalines
+        // starting from base of current chunk.
+        element_size_t prevIdx = 0;
+        this->sequence.emplace_back(chunkOffsetDatalines + prevIdx);
         entries += 1;
 
-        // Select random buffer line index from set of unused data line
-        // indices as the next entry in the path.
-        assert(unusedLinesIndices.size() < ((size_t)1 << 32)); // required by MTRand
-        while (unusedLinesIndices.size() > 0) {
-            // Get random dataline
-            unsigned long entryIdx = mr.randInt(unusedLinesIndices.size() - 1);
-            auto it = unusedLinesIndices.begin();
-            for (unsigned long i = 0; i < entryIdx; i++, it++) {}
+        for (size_t i = 0; i < numDatalinesPerSubpath - 1; i++) {
+            const element_size_t nextIdx = cachelineArray[i].indexToShuffle;
+            assert(0 < nextIdx && nextIdx < numDatalinesPerSubpath);
+            cachelineArray[i].indexToShuffle = -1; // sanity check this shouldn't break anything
 
-            // Add dataline to path
-            *(element_size_t*)(buffer->Get_buffer_pointer() + bufferOffset + (prevDataline * cacheline)) = bufferOffset + (*it * cacheline);
-            prevDataline = *it;
-            unusedLinesIndices.erase(it);
+            assert((element_size_t)-1 == cachelineArray[prevIdx].pathIndex);
+            cachelineArray[prevIdx].pathIndex = bufferOffset + chunkOffsetBytes + nextIdx * cacheline;
+            //printf("%lu: %u <- %u\n", i, prevIdx, nextIdx);
 
-            this->sequence.emplace_back(prevDataline);
+            prevIdx = nextIdx;
+            this->sequence.emplace_back(chunkOffsetDatalines + prevIdx);
             entries += 1;
         }
 
         // Connect last entry in path of this chunk to first entry in path of "next" chunk.
         // If current chunk is last chunk, then next chunk is the first chunk.
-        const element_size_t nextChunkDatalineOffset = ((subpathIdx + 1) % this->numSubpaths) * numDatalinesPerSubpath;
-        *(element_size_t*)(buffer->Get_buffer_pointer() + bufferOffset + (prevDataline * cacheline)) = bufferOffset + (nextChunkDatalineOffset * cacheline);
+        const size_t nextChunkOffsetDatalines = ((subpathIdx + 1) % this->numSubpaths) * numDatalinesPerSubpath;
+        cachelineArray[prevIdx].pathIndex = bufferOffset + nextChunkOffsetDatalines * cacheline;
+        //printf("%lu: %u <- %lu\n", (unsigned long)-1, prevIdx, nextChunkOffsetDatalines);
     }
 }
 
