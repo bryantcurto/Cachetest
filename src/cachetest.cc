@@ -75,17 +75,6 @@ const size_t CACHE_LINE_SIZE = 64;
 
 const size_t MAX_NUM_SUBPATHS = 10;
 
-size_t numSubpaths;
-std::vector<size_t> subpathThreadCounts;
-std::vector<std::vector<std::unordered_set<int> > > cpuIdSets;
-int mainThreadCPUId = -1;
-std::atomic<size_t> numAtBarrior(0);
-volatile bool startExperiment = false;
-
-std::vector<size_t> subpathFibreCounts;
-bool migrate = false;
-double zipfAlpha = 0.;
-
 // Dirty trick to avoid performing a memory load to get base address of
 // cluster array.
 // Treat this as a chunk of untyped memory used to store the clusters.
@@ -93,8 +82,30 @@ struct alignas(CACHE_LINE_SIZE) PaddedCluster {
 	Cluster cluster;
 	int8_t _padding[sizeof(Cluster) % CACHE_LINE_SIZE];
 };
-alignas(CACHE_LINE_SIZE) int8_t paddedClusters[MAX_NUM_SUBPATHS * sizeof(PaddedCluster)];
 
+/*
+ * Structure for holding results of calling loop()
+ * for a single thread/fibre
+ */
+struct LoopResult {
+	unsigned long long accesscount;
+	unsigned int index;
+};
+
+/*
+ * Structure for holding values needed by fibreCallback.
+ */
+struct CallbackPack {
+	LoopResult& res;
+	size_t subpathIdx, fibreIdx;
+	fibre_mutex_t *loggingMutex;
+	fibre_barrier_t *testBarrier;
+};
+
+/*
+ * Structure for storing main info about a subpath of
+ * the pointer chasing path.
+ */
 struct SubpathInfo {
 	SubpathInfo(element_size_t startIdx,
 				element_size_t endIdx,
@@ -107,7 +118,20 @@ struct SubpathInfo {
 	element_size_t startIdx, endIdx;
 	size_t length;
 };
+
+// Global variables for fibre migration microbenchmark
+size_t numSubpaths;
 std::vector<SubpathInfo> subpathInfo;
+std::vector<size_t> subpathThreadCounts;
+std::vector<std::vector<std::unordered_set<int> > > cpuIdSets;
+int mainThreadCPUId = -1;
+double zipfAlpha = 0.;
+std::atomic<size_t> numAtBarrior(0);
+volatile bool startExperiment = false;
+
+std::vector<size_t> subpathFibreCounts;
+bool migrate = false;
+alignas(CACHE_LINE_SIZE) int8_t paddedClusters[MAX_NUM_SUBPATHS * sizeof(PaddedCluster)];
 
 //We should add a sanity check to ensure that the dataset is a multiple of 
 //the element size, otherwise we might have half sized elements, which could force
@@ -271,15 +295,6 @@ void blockAlarmSignal() {
 	sigaddset(&set, SIGALRM);
 	assert(0 == pthread_sigmask(SIG_BLOCK, &set, NULL));
 }
-
-/*
- * Structure for holding results of calling loop()
- * for a single thread/fibre
- */
-struct LoopResult {
-	unsigned long long accesscount;
-	unsigned int index;
-};
 
 /*
  * Perform that pointer chasing by a single thread/fibre
@@ -487,13 +502,6 @@ std::vector<std::vector<LoopResult> > threadTest() {
 
 	return loopResults;
 }
-
-struct CallbackPack {
-	LoopResult& res;
-	size_t subpathIdx, fibreIdx;
-	fibre_mutex_t *loggingMutex;
-	fibre_barrier_t *testBarrier;
-};
 
 void *fibreCallback(void *p) {
 	CallbackPack& pack = *(CallbackPack *)p;
