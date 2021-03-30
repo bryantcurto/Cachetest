@@ -16,7 +16,7 @@
 /* My Customs */
 #define PROTECTION (PROT_READ | PROT_WRITE)
 
-Large_buffer::Large_buffer( size_t Buffer_size, bool Contiguous ) : Buffer( Buffer_size, Linux_attributes::POOL_SIZE_2MB, PAGE_2MB, Contiguous )
+Large_buffer::Large_buffer( size_t Buffer_size, bool Contiguous ) : Buffer( Buffer_size, Linux_attributes::POOL_SIZE_1GB, PAGE_1GB, Contiguous )
 {
 	Error_code status;
 	if( ( status = Allocate_memory() ) != OK )

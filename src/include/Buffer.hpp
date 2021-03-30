@@ -29,6 +29,7 @@ namespace Linux_attributes
 	const uint64_t PAGEMAP_MAPPED_MASK 		= ( 1ULL << 63 );
 	const uint64_t POOL_SIZE_4KB			= ( 1 << 25 );
 	const uint64_t POOL_SIZE_2MB 			= ( 1 << 26 );
+	const uint64_t POOL_SIZE_1GB 			= ( 0 ); // expect workingset size to be < 1GB
 };
 
 enum

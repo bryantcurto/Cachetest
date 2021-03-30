@@ -637,6 +637,12 @@ main( int argc, char* const argv[] ) {
 
     Parse_options(argc, argv, opt);
 
+    // Make sure working set size isn't larger than expected
+    if (opt.huge && opt.dataset > (1 << 30)) {
+        fprintf(stderr, "ERROR: Dataset size > 1GB not supported for use with hugepages.\n");
+        exit(-1);
+    }
+
     // Perform some setup
     if(!Configure_experiment())
         error("ERROR: Configuring");
