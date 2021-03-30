@@ -21,7 +21,9 @@ class Distribution {
         enum TYPE {UNIFORM, ZIPF, LINEAR, WUNI, SUBPATH};
         
         //Factory method
-        static Distribution* createDistribution(TYPE t,Buffer* buffer , int cacheline, size_t element_size, int seed, const size_t numSubpaths=1);
+        static Distribution* createDistribution(TYPE t, Buffer* buffer, int cacheline, size_t element_size, int seed,
+                                                // This is dumb, but it's easy
+                                                const size_t numSubpaths = 1, const double zipfAlpha = 0);
 
         void setup(Buffer*,size_t,int,int cacheline);
         void distribute();  //Public start point
@@ -74,11 +76,40 @@ class LinearDistribution: public Distribution {
 
 class SubpathDistribution : public Distribution {
     private:
-        size_t numSubpaths;
+        const size_t numSubpaths;
+        const double zipfAlpha;
+        // Extension of MTRand to satisfy requirements of UniformRandomBitGenerator.
+        // The constants were taken from MTRand source.
+        struct MTRandURBG : public MTRand {
+            using MTRand::MTRand;
+            using result_type = uint32;
+
+            constexpr result_type min() {
+                return 0;
+            }
+
+            constexpr result_type max() {
+                return (uint32_t)-1;
+            }
+
+            result_type operator()() {
+                return randInt(max());
+            }
+        };
+
+        template <typename URBG>
+        element_size_t uniformSubpath(const size_t offsetDatalines, const size_t sizeDatalines,
+                                      URBG& rand);
+        template <typename Rand>
+        element_size_t zipfSubpath(const size_t offsetDatalines, const size_t sizeDatalines,
+                                   Rand& rand);
 
     public:
-        SubpathDistribution(const size_t numSubpaths)
+        // Zipf alpha must be > 0 to use zipf
+        SubpathDistribution(const size_t numSubpaths,
+                            const double zipfAlpha = 0)
         : numSubpaths(numSubpaths)
+        , zipfAlpha(zipfAlpha)
         {}
 
         virtual void doDistribute();
