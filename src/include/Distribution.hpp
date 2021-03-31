@@ -100,9 +100,9 @@ class SubpathDistribution : public Distribution {
         template <typename URBG>
         element_size_t uniformSubpath(const size_t offsetDatalines, const size_t sizeDatalines,
                                       URBG& rand);
-        template <typename Rand>
+        template <typename URBG>
         element_size_t zipfSubpath(const size_t offsetDatalines, const size_t sizeDatalines,
-                                   Rand& rand);
+                                   URBG& rand);
 
     public:
         // Zipf alpha must be > 0 to use zipf
