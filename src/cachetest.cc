@@ -777,8 +777,19 @@ static void usage( const char* program ) {
 	std::cerr << "-F CSV of fibres per subpath (disabled by default)" << std::endl;
 	std::cerr << "-M flag indicating to perform thread migration across subpaths (disabled by default; specify with -F)" << std::endl;
 	std::cerr << "-C CSV *or* range (M-N) of CPU ids to which all threads are pinned" << std::endl;
-	std::cerr << "   Secify CPUs per subpath threads by specifying CSVs/ranges separated by a period (\".\") (default: no pinning)" << std::endl;
-	std::cerr << "-I Enable individual pinning i.e., pin 1 thread pinned to 1 CPU (default: group pinning)" << std::endl;
+	std::cerr << "   Specify CPUs per threads of each subpath by specifying CSVs/ranges separated by a period (\".\")" << std::endl;
+	std::cerr << "   Specify CPUs per thread of a subpath by specifying CSVs/ranges separated by an tilde (\"~\")" << std::endl;
+	/*
+	 * Some examples:
+	 *   0-7: pin all cores to cores 0-7
+	 *   0,2,4,6: pin all cores to cores 0,2,4,6
+	 *   0-3.4-7: pin threads of first subpath to cores 0,1,2,3 and second subpath to 4,5,6,7
+	 *   0-1~2,3.4-7: pin first thread of first subpath to 0,1, second thread of first subpath to 2,3
+	 *                and second subpath to 4,5,6,7
+	 */
+	std::cerr << "   (default: no pinning)" << std::endl;
+	std::cerr << "-I Enable individual pinning i.e., pin 1 thread to 1 CPU" << std::endl;
+	std::cerr << "   This option overridden by specifying CPUs per thread of a subpath" << std::endl;
 	std::cerr << "-m Pin main thread to specified core (default: not pinned)" << std::endl;
 	std::cerr << "-Z Use Zipf distribution and specify alpha value" << std::endl;
 	std::cerr << std::endl;
@@ -879,10 +890,7 @@ Parse_options( int argc, char * const *argv, Options &opt)
 
 	// Parse input string to determine which CPUs to pin to which threads
 	if (cpuIdsInput.size() > 0) {
-		std::vector<std::vector<int> > cpuIdsList;
-
-		// Parse input
-		for (const std::string& cpuIdsStr : split(cpuIdsInput, ".")) {
+		auto parseCSVOrRange = [](const std::string& cpuIdsStr) -> std::vector<int> {
 			std::vector<int> cpuIds;
 
 			if (std::string::npos != cpuIdsStr.find("-")) {
@@ -896,25 +904,84 @@ Parse_options( int argc, char * const *argv, Options &opt)
 					cpuIds.emplace_back(std::stoi(id));
 				}
 			}
-			assert(cpuIds.size() > 0);
-			cpuIdsList.emplace_back(cpuIds);
+
+			return cpuIds;
+		};
+
+		// SubpathCPUs is a dirty way of storing a list of CPUs to which all threads of a subpath
+		// are pinned, or a list of list to which each thread of each subpath is pinned.
+		// If only we were using C++17, then we could just use std::variant
+		using SubpathCPUs = std::pair<std::vector<int>, std::vector<std::vector<int> > >;
+		std::vector<SubpathCPUs> cpuIdsList;
+
+		// Parse input, getting CPUs to which threads of a subpath are pinned
+		for (const std::string& cpuIdsStr : split(cpuIdsInput, ".")) {
+			std::vector<int> cpuIdsOfSubpath;
+			std::vector<std::vector<int> > cpuIdsOfSubpathThreads;
+
+			if (std::string::npos != cpuIdsStr.find("~")) {
+				// CPUs were specified per thread of the subpath, so collect CPUs
+				// to which each thread should be pinned
+				for (const std::string& str : split(cpuIdsStr, "~")) {
+					cpuIdsOfSubpathThreads.emplace_back(parseCSVOrRange(str));
+				}
+			} else {
+				// CPUs were specified for all threads in the subpath
+				cpuIdsOfSubpath = parseCSVOrRange(cpuIdsStr);
+			}
+
+			// Perform some sanity checks
+			assert((cpuIdsOfSubpath.size() > 0) ^ (cpuIdsOfSubpathThreads.size() > 0));
+			assert((0 == cpuIdsOfSubpath.size()) ||
+				   (std::accumulate(cpuIdsOfSubpathThreads.begin(), cpuIdsOfSubpathThreads.end(), (size_t)-1,
+									[](size_t min, const std::vector<int>& set) -> size_t {
+										return std::min(min, set.size());
+									}) > 0));
+
+			cpuIdsList.emplace_back(cpuIdsOfSubpath, cpuIdsOfSubpathThreads);
 		}
 
 		// Make sure that largest CPU index is < CPU_SETSIZE
 		{
-			int maxCPUId = std::accumulate(cpuIdsList.begin(), cpuIdsList.end(), 0,
-					[](int max, std::vector<int> cpuIds) {
-						return std::max(max, *std::max_element(cpuIds.begin(), cpuIds.end()));
+			int minCPUId, maxCPUId;
+			std::tie(minCPUId, maxCPUId) =
+					std::accumulate(cpuIdsList.begin(), cpuIdsList.end(), std::pair<int,int>(INT_MAX, INT_MIN),
+					[](std::pair<int,int> pair, const SubpathCPUs& subpathCPUIds) -> std::pair<int,int> {
+						const std::vector<int>& cpuIdsOfSubpath = subpathCPUIds.first;
+						const std::vector<std::vector<int> >& cpuIdsOfSubpathThreads = subpathCPUIds.second;
+
+						if (cpuIdsOfSubpath.size() > 0) {
+							pair.first = std::min(pair.first, *std::min_element(cpuIdsOfSubpath.begin(), cpuIdsOfSubpath.end()));
+							pair.second = std::max(pair.second, *std::max_element(cpuIdsOfSubpath.begin(), cpuIdsOfSubpath.end()));
+						} else {
+							pair.first =
+									std::accumulate(cpuIdsOfSubpathThreads.begin(), cpuIdsOfSubpathThreads.end(), pair.first,
+									[](int min, const std::vector<int>& cpuIds) {
+										return std::accumulate(cpuIds.begin(), cpuIds.end(), min,
+															   static_cast<const int&(*)(const int&, const int&)>(std::min));
+									});
+							pair.second =
+									std::accumulate(cpuIdsOfSubpathThreads.begin(), cpuIdsOfSubpathThreads.end(), pair.second,
+									[](int max, const std::vector<int>& cpuIds) {
+										return std::accumulate(cpuIds.begin(), cpuIds.end(), max,
+															   static_cast<const int&(*)(const int&, const int&)>(std::max));
+									});
+						}
+
+						return pair;
 					});
-			maxCPUId = std::max(maxCPUId, mainThreadCPUId);
-			assert(maxCPUId < CPU_SETSIZE);
+			if (mainThreadCPUId >= 0) {
+				minCPUId = std::min(minCPUId, mainThreadCPUId);
+				maxCPUId = std::max(maxCPUId, mainThreadCPUId);
+			}
+			assert(0 <= minCPUId && minCPUId <= maxCPUId && maxCPUId < CPU_SETSIZE);
 		}
 
 		// Make sure either one set of CPUs is specified, or
 		// one set is specified per subpath
-		assert(1 == cpuIdsList.size() || (cpuIdsList.size() == cpuIdsList.size()));
+		assert(1 == cpuIdsList.size() || (numSubpaths == cpuIdsList.size()));
 
-		// Duplicate the single set of specified CPUs for each subpath
+		// Duplicate the single set of specified CPUs for each subpath if only 1 specified
 		if (1 == cpuIdsList.size() && numSubpaths > 1) {
 			for (size_t i = 0; i < numSubpaths - 1; i++) {
 				cpuIdsList.emplace_back(cpuIdsList[0]);
@@ -923,23 +990,35 @@ Parse_options( int argc, char * const *argv, Options &opt)
 
 		// Create mapping from thread to CPU set
 		for (size_t i = 0; i < numSubpaths; i++) {
-			const std::vector<int>& subpathCPUIds = cpuIdsList[i];
-			const size_t numThreads = subpathThreadCounts[i];
 			std::vector<std::unordered_set<int> > subpathThreadCPUIds;
 
-			if (groupPinning) {
-				// Each thread in subpath gets pinned to same set of CPUIds
-				std::unordered_set<int> cpuIds(subpathCPUIds.begin(), subpathCPUIds.end());
-				assert(cpuIds.size() == subpathCPUIds.size()); // Otherwise, they specified duplicate cpuId id!
+			const std::vector<int>& cpuIdsOfSubpath = cpuIdsList[i].first;
+			const std::vector<std::vector<int> >& cpuIdsOfSubpathThreads = cpuIdsList[i].second;
+			const size_t numThreads = subpathThreadCounts[i];
 
-				for (size_t i = 0; i < numThreads; i++) {
-					subpathThreadCPUIds.emplace_back(cpuIds);
+			if (cpuIdsOfSubpathThreads.size() > 0) {
+				// CPUs were specified per thread of the subpath
+				assert(numThreads == cpuIdsOfSubpathThreads.size());
+				for (const std::vector<int>& cpuIdsOfThread : cpuIdsOfSubpathThreads) {
+					subpathThreadCPUIds.emplace_back(cpuIdsOfThread.begin(), cpuIdsOfThread.end());
+					assert(cpuIdsOfThread.size() == subpathThreadCPUIds.back().size()); // otherwise, user specified duplicate cpuId id!
 				}
 			} else {
-				// Each thread in each subpath gets pinned to specified core
-				assert(numThreads == subpathCPUIds.size());
-				for (int cpuId : subpathCPUIds) {
-					subpathThreadCPUIds.emplace_back(std::unordered_set<int>({cpuId}));
+				// CPUs were specified for all threads in the subpath
+				if (groupPinning) {
+					// Each thread in subpath gets pinned to same set of CPUIds
+					std::unordered_set<int> cpuIds(cpuIdsOfSubpath.begin(), cpuIdsOfSubpath.end());
+					assert(cpuIds.size() == cpuIdsOfSubpath.size()); // Otherwise, they specified duplicate cpuId id!
+
+					for (size_t i = 0; i < numThreads; i++) {
+						subpathThreadCPUIds.emplace_back(cpuIds);
+					}
+				} else {
+					// Each thread in each subpath gets pinned to specified core
+					assert(numThreads == cpuIdsOfSubpath.size());
+					for (int cpuId : cpuIdsOfSubpath) {
+						subpathThreadCPUIds.emplace_back(std::unordered_set<int>({cpuId}));
+					}
 				}
 			}
 			cpuIdSets.emplace_back(subpathThreadCPUIds);
