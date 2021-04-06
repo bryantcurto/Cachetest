@@ -1,30 +1,36 @@
-pushd output > /dev/null
-dir_long=2
-dir_short=1
+dir_long=20
+dir_short=10
 
-for test_prefix in $(ls *.out | rev | cut -d '_' -f 3- | rev | sort -u); do
+output_dir="$1"
+test_prefix="$2"
+
+pushd "$output_dir" > /dev/null
+
+for test_prefix in $(ls -d "$test_prefix"*.out | rev | cut -d '_' -f 3- | rev | sort -u); do
   log_short="$test_prefix"_duration_"$dir_short".out
   log_long="$test_prefix"_duration_"$dir_long".out
 
   access_short=$(cat "$log_short" | grep "total access count=" | cut -d '=' -f 2)
   access_long=$(cat "$log_long" | grep "total access count=" | cut -d '=' -f 2)
 
-  loads_short=$(cat "$log_short" | grep L1-dcache-loads | cut -d 'L' -f 1 | sed 's/[ ,]//g')
-  loads_long=$(cat "$log_long" | grep L1-dcache-loads | cut -d 'L' -f 1 | sed 's/[ ,]//g')
+  loads_short=$(cat "$log_short" | grep L1-dcache-loads | tail -n 1 | cut -d 'L' -f 1 | sed 's/[ ,]//g')
+  loads_long=$(cat "$log_long" | grep L1-dcache-loads | tail -n 1 | cut -d 'L' -f 1 | sed 's/[ ,]//g')
 
-  misses_short=$(cat "$log_short" | grep L1-dcache-load-misses | cut -d 'L' -f 1 | sed 's/[ ,]//g')
-  misses_long=$(cat "$log_long" | grep L1-dcache-load-misses | cut -d 'L' -f 1 | sed 's/[ ,]//g')
+  misses_short=$(cat "$log_short" | grep L1-dcache-load-misses | tail -n 1 | cut -d 'L' -f 1 | sed 's/[ ,]//g')
+  misses_long=$(cat "$log_long" | grep L1-dcache-load-misses | tail -n 1 | cut -d 'L' -f 1 | sed 's/[ ,]//g')
 
   loads=$(echo "$loads_long - $loads_short" | bc -l)
   misses=$(echo "$misses_long - $misses_short" | bc -l)
 
-  echo "==== $test_prefix ===="
+  echo "==== $test_prefix"
+  #access_rate="$(echo "($access_long + $access_short) / ($dir_long + $dir_short)" | bc -l)"
+  #printf "access = %'.2f/sec, %s sec test = %'d, %s sec test = %'d\n" $access_rate $dir_long $access_long $dir_short $access_short
   printf "%s sec test: accesses = %'d\n" $dir_long $access_long
   printf "%s sec test: accesses = %'d\n" $dir_short $access_short
-  printf "%s sec test: loads = %'d\n" $dir_long $loads_long
-  printf "%s sec test: loads = %'d\n" $dir_short $loads_short
-  printf "%s sec test: misses = %'d\n" $dir_long $misses_long
-  printf "%s sec test: misses = %'d\n" $dir_short $misses_short
+  #printf "%s sec test: loads = %'d\n" $dir_long $loads_long
+  #printf "%s sec test: loads = %'d\n" $dir_short $loads_short
+  #printf "%s sec test: misses = %'d\n" $dir_long $misses_long
+  #printf "%s sec test: misses = %'d\n" $dir_short $misses_short
   printf "miss rate = %.2f%% / loads = %'d / misses = %'d\n" "$(echo "$misses / $loads * 100." | bc -l)" $loads $misses
 done
 
