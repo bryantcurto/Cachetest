@@ -474,6 +474,10 @@ std::vector<std::vector<LoopResult> > threadTest() {
 				// Don't handle alarm signal when it goes off
 				blockAlarmSignal();
 
+				// Name thread according to subpath
+				std::string thrname = "thr_subpath_" + std::to_string(subpathIdx);
+				assert(0 == pthread_setname_np(pthread_self(), thrname.c_str()));
+
 				// Have all threads wait at barrior until main thread starts test
 				numAtBarrior.fetch_add(1);
 				while (!startExperiment);
@@ -580,12 +584,12 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 		printf("Cluster %zu:\n", i);
 		((PaddedCluster*)&paddedClusters + i)->cluster.addWorkers(numThreads);
 
+		// Get thread ids
+		pthread_t* tids = new pthread_t[numThreads];
+		assert(((PaddedCluster*)&paddedClusters + i)->cluster.getWorkerSysIDs(tids, numThreads) == numThreads);
+
 		// Set cpu affinity for worker threads
 		if (cpuIdSets.size() > 0) {
-			// Get thread ids
-			pthread_t* tids = new pthread_t[numThreads];
-			assert(((PaddedCluster*)&paddedClusters + i)->cluster.getWorkerSysIDs(tids, numThreads) == numThreads);
-
 			// Set affinity for each thread
 			for (size_t j = 0; j < numThreads; j++) {
 				cpu_set_t cpuset = getCPUSet(i, j);
@@ -593,9 +597,15 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 
 				logCPUAffinity(tids[j], i);
 			}
-
-			delete[] tids;
 		}
+
+		// Name thread according to subpath
+		std::string thrname = "thr_subpath_" + std::to_string(i);
+		for (size_t j = 0; j < numThreads; j++) {
+			assert(0 == pthread_setname_np(tids[j], thrname.c_str()));
+		}
+
+		delete[] tids;
 	}
 
 	// Figure out how many fibres we'll be spawning
