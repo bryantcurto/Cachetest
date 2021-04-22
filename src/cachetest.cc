@@ -75,6 +75,10 @@ const size_t CACHE_LINE_SIZE = 64;
 
 const size_t MAX_NUM_SUBPATHS = 10;
 
+// 0 -> all threads/fibres start at first entry in subpath
+// 1 -> threads/fibres get assigned first entries so that they're spread across subpath
+const double THREAD_SUBPATH_DISTRIBUTION_DEC = 0.;
+
 // Dirty trick to avoid performing a memory load to get base address of
 // cluster array.
 // Treat this as a chunk of untyped memory used to store the clusters.
@@ -299,16 +303,16 @@ void blockAlarmSignal() {
 /*
  * Perform that pointer chasing by a single thread/fibre
  */
-LoopResult loop(const size_t subpathIdx) {
+LoopResult loop(const size_t subpathIdx, const size_t threadIdx, const element_size_t startIdx, size_t stepsOffset) {
     register unsigned long long accesscount = 0;
     unsigned int dummy=0;
 
-    register element_size_t index = subpathInfo[subpathIdx].startIdx;
+    register element_size_t index = startIdx;
     unsigned char* startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
 
 #if defined(FIBRE_YIELD) || defined(FIBRE_YIELD_GLOBAL) || defined(FIBRE_YIELD_FORCE)
 	const register size_t steps = subpathInfo[subpathIdx].length;
-	register size_t curStep = 0;
+	register size_t curStep = stepsOffset;
 #endif
 
     asm ("#//Loop Starts here");
@@ -329,7 +333,7 @@ LoopResult loop(const size_t subpathIdx) {
         *(element_size_t*)(startAddr + index + sizeof(int)) = dummy;
 #endif
 #ifdef DEBUG_RUN
-		printf("%zu: (%p) %u -> %u\n", subpathIdx, (element_size_t *)(startAddr + index), index, next);
+		printf("subpath:%zu tid:%zu: (%p) %u -> %u\n", subpathIdx, threadIdx, (element_size_t *)(startAddr + index), index, next);
 #endif
 
         index = next;
@@ -361,19 +365,19 @@ LoopResult loop(const size_t subpathIdx) {
 /*
  * Perform that pointer chasing by a single thread/fibre
  */
-LoopResult migratingLoop(const size_t subpathIdx) {
+LoopResult migratingLoop(const size_t subpathIdx, const size_t threadIdx, const element_size_t startIdx, size_t stepsOffset) {
 	// Register variables have underscore (_) prefix
     register unsigned long long _accesscount = 0;
     unsigned int dummy=0;
 
-    register element_size_t _index = subpathInfo[subpathIdx].startIdx;
+    register element_size_t _index = startIdx;
     register unsigned char* _startAddr = buffer->Get_buffer_pointer();  //This is new, need to get the correct version from the Buffer
 
 	// == v == migration code == v ==
 	const register size_t _numSubpaths = numSubpaths;
 	register size_t _subpathIdx = subpathIdx;
 	register size_t _numSubpathSteps = subpathInfo[subpathIdx].length;
-	register size_t _curStep = 0;
+	register size_t _curStep = stepsOffset;
 	// == ^ == migration code == ^ ==
 
     asm ("#//Loop Starts here");
@@ -394,7 +398,8 @@ LoopResult migratingLoop(const size_t subpathIdx) {
         *(element_size_t*)(_startAddr + _index + sizeof(int)) = dummy;
 #endif
 #ifdef DEBUG_RUN
-		printf("%zu: (%p) %u -> %u\n", _subpathIdx, (element_size_t *)(_startAddr + _index), _index, next);
+		printf("subpath:%zu tid:%zu: (%p) %u -> %u\n",
+			   _subpathIdx, threadIdx, (element_size_t *)(_startAddr + _index), _index, next);
 #endif
 
         _index = next;
@@ -415,7 +420,8 @@ LoopResult migratingLoop(const size_t subpathIdx) {
 			_numSubpathSteps = subpathInfo[_subpathIdx].length;
 
 #ifdef DEBUG_RUN
-			printf("Migrating! %zu -> %zu\n", oldSubpathIdx, _subpathIdx);
+			printf("subpath:%zu tid:%zu migrating to subpath %zu!\n",
+				   oldSubpathIdx, threadIdx, _subpathIdx);
 #endif
 
 			Cluster *cluster = &((PaddedCluster *)paddedClusters + _subpathIdx)->cluster;
@@ -445,6 +451,15 @@ std::vector<std::vector<LoopResult> > threadTest() {
 	for(size_t i = 0; i < numSubpaths; i++) {
 		for(size_t j = 0; j < subpathThreadCounts[i]; j++) {
 			threads.emplace_back([&loggingMutex](LoopResult& res, size_t subpathIdx, size_t threadIdx) {
+				// Figure out index of subpath to start on
+				double subpathDecimalOffset = (double)threadIdx / subpathThreadCounts[subpathIdx];
+				subpathDecimalOffset *= THREAD_SUBPATH_DISTRIBUTION_DEC;
+				size_t stepsOffset = (size_t)std::round(subpathInfo[subpathIdx].length * subpathDecimalOffset);
+				element_size_t startIdx = subpathInfo[subpathIdx].startIdx;
+				for (size_t k = 0; k < stepsOffset; k++) {
+					startIdx = *(element_size_t*)(buffer->Get_buffer_pointer() + startIdx);
+				}
+
 				// Set cpu affinity
 				if (cpuIdSets.size() > 0) {
 					cpu_set_t cpuset = getCPUSet(subpathIdx, threadIdx);
@@ -452,18 +467,18 @@ std::vector<std::vector<LoopResult> > threadTest() {
 				}
 
 				loggingMutex.lock();
-				std::cout << "Thread idx=" << threadIdx << " on subpath " << subpathIdx << std::endl;
+				printf("subpath %zu tid %zu starting on idx %d (offset=%zu)\n",
+					   subpathIdx, threadIdx, startIdx, stepsOffset);
 				loggingMutex.unlock();
 
 				// Don't handle alarm signal when it goes off
 				blockAlarmSignal();
 
-
 				// Have all threads wait at barrior until main thread starts test
 				numAtBarrior.fetch_add(1);
 				while (!startExperiment);
 
-				res = loop(subpathIdx);
+				res = loop(subpathIdx, threadIdx, startIdx, stepsOffset);
 			}, std::ref(loopResults[i][j]), i, j);
 		}
 	}
@@ -506,6 +521,15 @@ std::vector<std::vector<LoopResult> > threadTest() {
 void *fibreCallback(void *p) {
 	CallbackPack& pack = *(CallbackPack *)p;
 
+	// Figure out index of subpath to start on
+	double subpathDecimalOffset = (double)pack.fibreIdx / subpathFibreCounts[pack.subpathIdx];
+	subpathDecimalOffset *= THREAD_SUBPATH_DISTRIBUTION_DEC;
+	size_t stepsOffset = (size_t)std::round(subpathInfo[pack.subpathIdx].length * subpathDecimalOffset);
+	element_size_t startIdx = subpathInfo[pack.subpathIdx].startIdx;
+	for (size_t k = 0; k < stepsOffset; k++) {
+		startIdx = *(element_size_t*)(buffer->Get_buffer_pointer() + startIdx);
+	}
+
 	// Don't handle alarm signal when it goes off.
 	// This is done for the underlying worker thread since we can't
 	// have one thread block signals for another thread.
@@ -513,8 +537,8 @@ void *fibreCallback(void *p) {
 	blockAlarmSignal();
 
 	assert(0 == fibre_mutex_lock(pack.loggingMutex));
-	std::cout << "Fibre " << fibre_self() << " idx=" << pack.fibreIdx
-			  << " on cluster " << pack.subpathIdx << std::endl;
+	printf("cluster/subpath %zu fid %zu starting on idx %d (offset=%zu)\n",
+		   pack.subpathIdx, pack.fibreIdx, startIdx, stepsOffset);
 	assert(0 == fibre_mutex_unlock(pack.loggingMutex));
 
 	// Have all fibres wait at barrior until main thread starts test
@@ -522,9 +546,9 @@ void *fibreCallback(void *p) {
 	assert(0 == fibre_barrier_wait(pack.testBarrier));
 
 	if (migrate) {
-		pack.res = migratingLoop(pack.subpathIdx);
+		pack.res = migratingLoop(pack.subpathIdx, pack.fibreIdx, startIdx, stepsOffset);
 	} else {
-		pack.res = loop(pack.subpathIdx);
+		pack.res = loop(pack.subpathIdx, pack.fibreIdx, startIdx, stepsOffset);
 	}
 
 	delete (CallbackPack *)p;
