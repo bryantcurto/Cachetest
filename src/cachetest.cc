@@ -127,6 +127,7 @@ struct SubpathInfo {
 size_t numSubpaths;
 std::vector<SubpathInfo> subpathInfo;
 std::vector<size_t> subpathThreadCounts;
+std::unordered_set<int> mainCPUIdSet;
 std::vector<std::vector<std::unordered_set<int> > > cpuIdSets;
 int mainThreadCPUId = -1;
 double zipfAlpha = 0.;
@@ -266,17 +267,19 @@ void splitPointerChasingPath() {
 #endif
 }
 
-cpu_set_t getCPUSet(size_t subpathIdx, size_t threadIdx) {
-	// Create set of CPUs to which this thread is pinned
-	cpu_set_t cpuset;
-	CPU_ZERO(&cpuset);
-	for (int cpu : cpuIdSets[subpathIdx][threadIdx]) {
-		CPU_SET(cpu, &cpuset);
+void setThreadAffinity(pthread_t tid, const std::unordered_set<int>& cpuIdSet) {
+	if (cpuIdSet.size() > 0) {
+		// Create set of CPUs to which this thread is pinned
+		cpu_set_t cpuset;
+		CPU_ZERO(&cpuset);
+		for (int cpu : cpuIdSet) {
+			CPU_SET(cpu, &cpuset);
+		}
+		assert(0 == pthread_setaffinity_np(tid, sizeof(cpu_set_t), &cpuset));
 	}
-	return cpuset;
 }
 
-void logCPUAffinity(pthread_t tid, size_t subpathIdx) {
+void logThreadAffinity(pthread_t tid, ssize_t subpathIdx = -1) {
 //#ifdef DEBUG
 	cpu_set_t cpuset;
 	CPU_ZERO(&cpuset);
@@ -288,8 +291,14 @@ void logCPUAffinity(pthread_t tid, size_t subpathIdx) {
 			cpuIds += std::to_string(i) + ",";
 		}
 	}
-	std::cout << "Thread " << tid << " (pinned to CPUs: " << (cpuIds.size() > 0 ? cpuIds : "n/a")
-			  << ") looping over subpath " << subpathIdx << std::endl;
+	if (subpathIdx < 0) {
+		std::cout << "Main ";
+	}
+	std::cout << "Thread " << tid << " (pinned to CPUs: " << (cpuIds.size() > 0 ? cpuIds : "n/a") << ")";
+	if (subpathIdx >= 0) {
+		std::cout << " looping over subpath " << subpathIdx;
+	}
+	std::cout << std::endl;
 //#endif
 }
 
@@ -461,10 +470,7 @@ std::vector<std::vector<LoopResult> > threadTest() {
 				}
 
 				// Set cpu affinity
-				if (cpuIdSets.size() > 0) {
-					cpu_set_t cpuset = getCPUSet(subpathIdx, threadIdx);
-					assert(0 == pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset));
-				}
+				setThreadAffinity(pthread_self(), cpuIdSets[subpathIdx][threadIdx]);
 
 				loggingMutex.lock();
 				printf("subpath %zu tid %zu starting on idx %d (offset=%zu)\n",
@@ -472,7 +478,7 @@ std::vector<std::vector<LoopResult> > threadTest() {
 				loggingMutex.unlock();
 
 				// Don't handle alarm signal when it goes off
-				blockAlarmSignal();
+				//blockAlarmSignal();
 
 				// Name thread according to subpath
 				std::string thrname = "thr_subpath_" + std::to_string(subpathIdx);
@@ -490,11 +496,9 @@ std::vector<std::vector<LoopResult> > threadTest() {
 	// Wait for all threads to be ready!
 	while (numAtBarrior.load() != threads.size());
 
-	if (cpuIdSets.size() > 0) {
-		for (size_t i = 0, k = 0; i < numSubpaths; i++) {
-			for (size_t j = 0; j < subpathThreadCounts[i]; j++, k++) {
-				logCPUAffinity(threads[k].native_handle(), i);
-			}
+	for (size_t i = 0, k = 0; i < numSubpaths; i++) {
+		for (size_t j = 0; j < subpathThreadCounts[i]; j++, k++) {
+			logThreadAffinity(threads[k].native_handle(), i);
 		}
 	}
 
@@ -538,7 +542,7 @@ void *fibreCallback(void *p) {
 	// This is done for the underlying worker thread since we can't
 	// have one thread block signals for another thread.
 	// TODO FIX: This doesn't guarantee that we get all of the worker fibres.
-	blockAlarmSignal();
+	//blockAlarmSignal();
 
 	assert(0 == fibre_mutex_lock(pack.loggingMutex));
 	printf("cluster/subpath %zu fid %zu starting on idx %d (offset=%zu)\n",
@@ -589,14 +593,9 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 		assert(((PaddedCluster*)&paddedClusters + i)->cluster.getWorkerSysIDs(tids, numThreads) == numThreads);
 
 		// Set cpu affinity for worker threads
-		if (cpuIdSets.size() > 0) {
-			// Set affinity for each thread
-			for (size_t j = 0; j < numThreads; j++) {
-				cpu_set_t cpuset = getCPUSet(i, j);
-				assert(0 == pthread_setaffinity_np(tids[j], sizeof(cpu_set_t), &cpuset));
-
-				logCPUAffinity(tids[j], i);
-			}
+		for (size_t j = 0; j < numThreads; j++) {
+			setThreadAffinity(tids[j], cpuIdSets[i][j]);
+			logThreadAffinity(tids[j], i);
 		}
 
 		// Name thread according to subpath
@@ -721,12 +720,8 @@ main( int argc, char* const argv[] ) {
 	assert(numAtBarrior.is_lock_free());
 
 	// Pin main thread to specified core
-	if (mainThreadCPUId >= 0) {
-		cpu_set_t cpuset;
-		CPU_ZERO(&cpuset);
-		CPU_SET(mainThreadCPUId, &cpuset);
-		assert(0 == pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset));
-	}
+	setThreadAffinity(pthread_self(), mainCPUIdSet);
+	logThreadAffinity(pthread_self());
 
 	std::vector<std::vector<LoopResult> > loopResults;
 	if (subpathFibreCounts.size() > 0) {
@@ -813,6 +808,7 @@ static void usage( const char* program ) {
 	std::cerr << "-C CSV *or* range (M-N) of CPU ids to which all threads are pinned" << std::endl;
 	std::cerr << "   Specify CPUs per threads of each subpath by specifying CSVs/ranges separated by a period (\".\")" << std::endl;
 	std::cerr << "   Specify CPUs per thread of a subpath by specifying CSVs/ranges separated by an tilde (\"~\")" << std::endl;
+	std::cerr << "   (default: not pinned)" << std::endl;
 	/*
 	 * Some examples:
 	 *   0-7: pin all cores to cores 0-7
@@ -824,7 +820,7 @@ static void usage( const char* program ) {
 	std::cerr << "   (default: no pinning)" << std::endl;
 	std::cerr << "-I Enable individual pinning i.e., pin 1 thread to 1 CPU" << std::endl;
 	std::cerr << "   This option overridden by specifying CPUs per thread of a subpath" << std::endl;
-	std::cerr << "-m Pin main thread to specified core (default: not pinned)" << std::endl;
+	std::cerr << "-m CSV *or* range (M-N) of CPU ids to which main thread is pinned (default: not pinned)" << std::endl;
 	std::cerr << "-Z Use Zipf distribution and specify alpha value" << std::endl;
 	std::cerr << std::endl;
     std::cerr << "-a require physically contigous memory (default: no)" << std::endl;
@@ -850,6 +846,7 @@ Parse_options( int argc, char * const *argv, Options &opt)
 	std::string threadsInput = "";
 	std::string cpuIdsInput = "";
 	std::string fibresInput = "";
+	std::string mainCPUIdsInput = "";
 	bool groupPinning = true;
     for (;;) {
         int option = getopt( argc, argv, OPT_ARG_STRING );
@@ -860,7 +857,7 @@ Parse_options( int argc, char * const *argv, Options &opt)
 			case 'M': migrate = true; break;
 			case 'C': cpuIdsInput = optarg; break;
 			case 'I': groupPinning = false; break;
-			case 'm': mainThreadCPUId = atoi(optarg); break;
+			case 'm': mainCPUIdsInput = optarg; break;
 
             case 'b': opt.bufferfactor = atoi( optarg ); break;
             case 'd': opt.duration = atoi( optarg ); break;
@@ -922,26 +919,32 @@ Parse_options( int argc, char * const *argv, Options &opt)
 		assert(subpathFibreCounts.size() == numSubpaths);
 	}
 
+	auto parseCSVOrRange = [](const std::string& cpuIdsStr) -> std::vector<int> {
+		std::vector<int> cpuIds;
+
+		if (std::string::npos != cpuIdsStr.find("-")) {
+			auto range = split(cpuIdsStr, "-");
+			assert(range.size() == 2);
+			for (int id = std::stoi(range[0]); id <= std::stoi(range[1]); id++) {
+				cpuIds.emplace_back(id);
+			}
+		} else {
+			for (const auto& id : split(cpuIdsStr, ",")) {
+				cpuIds.emplace_back(std::stoi(id));
+			}
+		}
+
+		return cpuIds;
+	};
+
+	// Get CPUs to which main thread should be pinned
+	if (mainCPUIdsInput.size() > 0) {
+		std::vector<int> cpuList = parseCSVOrRange(mainCPUIdsInput);
+		mainCPUIdSet.insert(cpuList.begin(), cpuList.end());
+	}
+
 	// Parse input string to determine which CPUs to pin to which threads
 	if (cpuIdsInput.size() > 0) {
-		auto parseCSVOrRange = [](const std::string& cpuIdsStr) -> std::vector<int> {
-			std::vector<int> cpuIds;
-
-			if (std::string::npos != cpuIdsStr.find("-")) {
-				auto range = split(cpuIdsStr, "-");
-				assert(range.size() == 2);
-				for (int id = std::stoi(range[0]); id <= std::stoi(range[1]); id++) {
-					cpuIds.emplace_back(id);
-				}
-			} else {
-				for (const auto& id : split(cpuIdsStr, ",")) {
-					cpuIds.emplace_back(std::stoi(id));
-				}
-			}
-
-			return cpuIds;
-		};
-
 		// SubpathCPUs is a dirty way of storing a list of CPUs to which all threads of a subpath
 		// are pinned, or a list of list to which each thread of each subpath is pinned.
 		// If only we were using C++17, then we could just use std::variant
@@ -1078,6 +1081,12 @@ Parse_options( int argc, char * const *argv, Options &opt)
 			}
 		}
 //#endif
+	} else {
+		// Fill cpuIdSets with empty sets
+		for (size_t i = 0; i < numSubpaths; i++) {
+			cpuIdSets.emplace_back(std::vector<std::unordered_set<int> >(
+					(subpathFibreCounts.size() > 0) ? subpathFibreCounts[i] : subpathThreadCounts[i]));
+		}
 	}
 
     return true;
@@ -1162,6 +1171,7 @@ Setup_distribution()
     distr->distribute();
 
 	subpathInfo = collectPointerChasingSubpathInfo();
+	printf("PCP Start Addr: %p\n", (void *)buffer->Get_start_address());
 
 #ifdef DEBUG
 	// Log input pointer chaising path
