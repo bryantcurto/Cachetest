@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <vector>
 #include <unordered_set>
+#include <set>
 #include <algorithm>
 #include <numeric>
 #include <utility>
@@ -31,6 +32,7 @@
 
 #include <pthread.h>
 #include <sched.h>
+#include <sys/mman.h>
 
 #include <Perf.hpp>
 
@@ -129,6 +131,7 @@ std::vector<SubpathInfo> subpathInfo;
 std::vector<size_t> subpathThreadCounts;
 std::unordered_set<int> mainCPUIdSet;
 std::vector<std::vector<std::unordered_set<int> > > cpuIdSets;
+std::set<int> uniqueWorkerCPUIdSet;
 int mainThreadCPUId = -1;
 double zipfAlpha = 0.;
 std::atomic<size_t> numAtBarrior(0);
@@ -307,6 +310,48 @@ void blockAlarmSignal() {
 	sigemptyset(&set);
 	sigaddset(&set, SIGALRM);
 	assert(0 == pthread_sigmask(SIG_BLOCK, &set, NULL));
+}
+
+void __attribute__((optimize(0))) evictCacheEntries() {
+	assert(uniqueWorkerCPUIdSet.size() > 0);
+
+	using BufType = uint64_t;
+	const size_t length = 1lu << 30;
+	const int prot = (PROT_READ | PROT_WRITE);
+	const int flags = (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB);
+
+	// Remember current affinity
+	cpu_set_t cpusetOriginal;
+	CPU_ZERO(&cpusetOriginal);
+	assert(0 == pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpusetOriginal));
+
+	// Allocate 1GB hugepage of memory to operate on, thereby clearing cache
+	volatile BufType *myBuffer = (volatile BufType *)mmap(NULL, length, prot, flags, 0, 0);
+	if (MAP_FAILED == myBuffer) {
+		perror("Failed to allocate hugepage for clearing cache\n");
+		exit(-1);
+	}
+
+	// Log which core's cache is getting wiped
+	printf("Wiping caches of cores %s\n",
+		   std::accumulate(uniqueWorkerCPUIdSet.begin(), uniqueWorkerCPUIdSet.end(), std::string(""),
+				[](const std::string& s, const int& cpuid) -> std::string {
+					return s + std::to_string(cpuid) + ",";
+				}).c_str());
+
+	// Clear cache of each core that can run a worker thread
+	for (int cpuid : uniqueWorkerCPUIdSet) {
+		setThreadAffinity(pthread_self(), std::unordered_set<int>({cpuid}));
+		for (size_t i = 0; i < (length / sizeof(BufType)); i++) {
+			myBuffer[i] = ~(BufType)0 & i | cpuid;
+		}
+	}
+
+	// Free memory
+	assert(0 == munmap((void *)myBuffer, length));
+
+	// Set original affinity
+	assert(0 == pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpusetOriginal));
 }
 
 /*
@@ -502,6 +547,9 @@ std::vector<std::vector<LoopResult> > threadTest() {
 		}
 	}
 
+	// Wipe out the caches of cores that will run pointer-chasing-path thread
+	evictCacheEntries();
+
 	// Officially start test timer!
 	setupTimeout();
 
@@ -654,6 +702,9 @@ std::vector<std::vector<LoopResult> > fibreTest() {
 
 	// Wait for all threads to be ready!
 	while (numAtBarrior.load() != numTotalFibres);
+
+	// Wipe out the caches of cores that will run pointer-chasing-path thread
+	evictCacheEntries();
 
 	// Officially start test timer!
 	setupTimeout();
@@ -1061,7 +1112,7 @@ Parse_options( int argc, char * const *argv, Options &opt)
 			cpuIdSets.emplace_back(subpathThreadCPUIds);
 		}
 
-//#ifdef DEBUG
+#ifdef DEBUG
 		// Log correspondence between threads of a subpath and cores
 		std::cout << "Specified CPU Pins:" << std::endl;
 		for (auto subpathCPUIds : cpuIdSets) {
@@ -1080,12 +1131,28 @@ Parse_options( int argc, char * const *argv, Options &opt)
 				std::cout << "> " << fibreCount << " fibres" << std::endl;
 			}
 		}
-//#endif
+#endif
 	} else {
 		// Fill cpuIdSets with empty sets
 		for (size_t i = 0; i < numSubpaths; i++) {
 			cpuIdSets.emplace_back(std::vector<std::unordered_set<int> >(
 					(subpathFibreCounts.size() > 0) ? subpathFibreCounts[i] : subpathThreadCounts[i]));
+		}
+	}
+
+	// Get a list of possible CPU ids that a worker thread may run on
+	for (const auto& setList : cpuIdSets) {
+		for (const auto& set : setList) {
+			if (set.size() > 0) {
+				uniqueWorkerCPUIdSet.insert(set.begin(), set.end());
+			} else {
+				// Thread is not pinned! Assume that any core can be used
+				assert(std::thread::hardware_concurrency() > 0);
+				for (int i = 0; i < std::thread::hardware_concurrency(); i++) {
+					uniqueWorkerCPUIdSet.insert(i);
+				}
+				break; // no new elements will be added
+			}
 		}
 	}
 
